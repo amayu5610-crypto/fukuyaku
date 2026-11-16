@@ -383,7 +383,29 @@ function seed(){
       {id:'P007',residentId:'R003',medicineId:'M002',dose:'1錠',timeSlot:'朝',startDate:addDays(-60),endDate:addDays(-1)}]};
 }
 const repo={
-  _db(){let d=localStorage.getItem(DB_KEY);if(!d){localStorage.setItem(DB_KEY,JSON.stringify(seed()));d=localStorage.getItem(DB_KEY)}return JSON.parse(d)},
+  _db(){
+    const saved=localStorage.getItem(DB_KEY);
+    if(!saved){
+      const initial=seed();
+      localStorage.setItem(DB_KEY,JSON.stringify(initial));
+      return initial;
+    }
+    const db=JSON.parse(saved);
+    // コードの職員一覧に追加・更新された職員を、既存データに反映する。
+    // 記録・利用者・処方データは書き換えない。
+    const fromCode=seed().staff;
+    const existing=Array.isArray(db.staff)?db.staff:[];
+    const byId=new Map(existing.filter(s=>s&&s.id).map(s=>[s.id,s]));
+    for(const s of fromCode){
+      byId.set(s.id,{...(byId.get(s.id)||{}),...s});
+    }
+    const staff=Array.from(byId.values());
+    if(JSON.stringify(existing)!==JSON.stringify(staff)){
+      db.staff=staff;
+      localStorage.setItem(DB_KEY,JSON.stringify(db));
+    }
+    return db;
+  },
   getStaffList(){return this._db().staff},
   getStaff(id){return this._db().staff.find(x=>x.id===id)},
   getResidents(){return this._db().residents},
