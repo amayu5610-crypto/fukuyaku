@@ -262,6 +262,41 @@ label.ack input { width: 21px; height: 21px; min-height: 0; flex-shrink: 0; acce
 .ov { position: fixed; inset: 0; background: rgb(19 34 30 / 57%); display: flex; align-items: center; justify-content: center; padding: 18px; z-index: 20; }
 .ov .card { width: 100%; max-width: 440px; margin: 0; box-shadow: 0 18px 60px rgb(0 0 0 / 13%); }
 
+/* ---------- Status overview ---------- */
+.status-toolbar { display: grid; gap: 17px; }
+.status-date-label { display: block; font-size: 13px; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
+.status-date-field { max-width: 235px; }
+.status-tabs { display: flex; flex-wrap: wrap; gap: 7px; }
+.status-tabs button {
+  flex: 1 1 90px; min-height: 43px; margin: 0; padding: 9px 8px;
+  font-size: 14px; font-weight: 700; border-radius: 7px;
+}
+.status-tabs button.active { background: var(--main); color: #fff; border-color: var(--main); }
+.status-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 18px 0; }
+.status-summary-item { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 15px 12px; min-width: 0; }
+.status-summary-item .status-count { display: block; font-size: 30px; line-height: 1.3; font-weight: 750; font-variant-numeric: tabular-nums; }
+.status-summary-item .status-count small { font-size: 12px; font-weight: 650; margin-left: 2px; }
+.status-summary-item .status-heading { display: block; color: var(--muted); font-size: 12px; font-weight: 700; margin-top: 3px; }
+.status-summary-item.completed .status-count { color: var(--main-dark); }
+.status-summary-item.alert .status-count { color: var(--danger); }
+.status-note { font-size: 13px; color: var(--muted); line-height: 1.7; margin: 6px 0 19px; }
+.status-group { padding: 0; overflow: hidden; }
+.status-group-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; background: #f7f9f7; padding: 14px 19px; border-bottom: 1px solid var(--line); }
+.status-group-head h3 { margin: 0; font-size: 17px; }
+.status-group-head small { color: var(--muted); font-size: 12px; font-weight: 650; }
+.status-entry { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 17px 19px; border-bottom: 1px solid var(--line); }
+.status-entry:last-child { border-bottom: 0; }
+.status-person { font-size: 16px; font-weight: 750; line-height: 1.4; }
+.status-room { font-size: 12px; color: var(--muted); font-weight: 500; margin-left: 8px; }
+.status-med { font-size: 14px; line-height: 1.5; margin-top: 6px; }
+.status-detail { color: var(--muted); font-size: 12px; margin-top: 4px; }
+.status-result { display: flex; align-items: flex-end; flex-direction: column; gap: 5px; flex: 0 0 auto; }
+.status-pill { white-space: nowrap; border-radius: 5px; padding: 5px 10px; font-size: 12px; font-weight: 750; }
+.status-pill.done { background: var(--main-soft); color: var(--main-dark); }
+.status-pill.pending { background: #eff1f0; color: #56635c; }
+.status-pill.attention { background: #fbe7e4; color: var(--danger); }
+.status-record-time { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.status-empty { background: #fff; border: 1px dashed #bdcac2; border-radius: 10px; padding: 26px 20px; text-align: center; color: var(--muted); font-size: 15px; }
 /* ---------- Log ---------- */
 .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 9px; background: #fff; margin-bottom: 17px; }
 table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 570px; }
@@ -287,6 +322,16 @@ tr.bad td { font-weight: 650; }
   .big, .res .big { font-size: 23px; }
   .row { flex-direction: column; gap: 0; }
   .history-tools { grid-template-columns: 1fr; }
+  .status-summary { gap: 7px; }
+  .status-summary-item { padding: 13px 9px; }
+  .status-summary-item .status-count { font-size: 27px; }
+  .status-summary-item .status-heading { font-size: 11px; }
+  .status-entry { padding: 15px 14px; }
+  .status-group-head { padding: 13px 14px; }
+  .status-person { font-size: 15px; }
+  .status-med { font-size: 13px; }
+  .status-pill { padding: 5px 8px; }
+
 }
 @media (prefers-reduced-motion: reduce) { button { transition: none; } }
 </style>
@@ -344,6 +389,7 @@ const repo={
   getResidents(){return this._db().residents},
   getResident(id){return this._db().residents.find(x=>x.id===id)},
   getMedicine(id){return this._db().medicines.find(x=>x.id===id)},
+  getPrescriptions(){return this._db().prescriptions},
   getPrescription(id){return this._db().prescriptions.find(x=>x.id===id)},
   getLogs(){return JSON.parse(localStorage.getItem(LOG_KEY)||'[]')},
   findLog(prescriptionId,date,timeSlot){return this.getLogs().find(l=>l.prescriptionId===prescriptionId&&l.date===date&&l.timeSlot===timeSlot)},
@@ -358,8 +404,15 @@ const repo={
 const S={step:1,staff:null,slot:currentSlot(),resident:null,rx:null,check:null,status:null,reason:'',saved:null,view:'flow'};
 const STEPS=['職員','利用者','薬QR','照合','記録'];
 function go(step){stopScan();S.step=step;S.view='flow';render()}
+function showStatus(){
+  stopScan();
+  S.view='status';
+  S.dashboardDate=ymd(new Date());
+  S.dashboardSlot='すべて';
+  render();
+}
 function renderSteps(){
-  $('#steps').innerHTML=S.view==='flow'?STEPS.map((t,i)=>`<span data-number="${i+1}" class="${i+1===S.step?'on':i+1<S.step?'done':''}" ${i+1===S.step?'aria-current="step"':''}>${t}</span>`).join(''):'<span class="on history-step">服薬履歴</span>';
+  $('#steps').innerHTML=S.view==='flow'?STEPS.map((t,i)=>`<span data-number="${i+1}" class="${i+1===S.step?'on':i+1<S.step?'done':''}" ${i+1===S.step?'aria-current="step"':''}>${t}</span>`).join(''):S.view==='status'?'<span class="on history-step">服薬状況一覧</span>':'<span class="on history-step">服薬履歴</span>';
   $('#who').textContent=S.staff?'担当：'+S.staff.name:'';
 }
 
@@ -367,6 +420,7 @@ function renderSteps(){
 function render(){
   renderSteps();const a=$('#app');
   if(S.view==='history')return renderHistory(a);
+  if(S.view==='status')return renderStatus(a);
   ({1:r1,2:r2,3:r3,4:r4,5:r5})[S.step](a);
   window.scrollTo(0,0);
 }
@@ -389,6 +443,7 @@ function r1(a){
   <div class="grid">${SLOTS.map(t=>`<button data-slot="${t}" class="${t===S.slot?'sel':''}" aria-pressed="${t===S.slot}">${t}</button>`).join('')}</div>
   <p class="hint">現在時刻から「${currentSlot()}」を選択しています。必要に応じて変更できます。</p></div>
   <button class="pri" id="next-staff" ${S.staff?'':'disabled'}>利用者選択へ進む</button>
+  <button id="show-status">本日の服薬状況を見る</button>
   <button id="hist">過去の服薬記録を見る</button>`;
 
   const toggle=$('#staff-toggle'),options=$('#staff-options');
@@ -408,6 +463,7 @@ function r1(a){
   });
   a.querySelectorAll('[data-slot]').forEach(b=>b.onclick=()=>{S.slot=b.dataset.slot;r1(a)});
   $('#next-staff').onclick=()=>{if(S.staff)go(2)};
+  $('#show-status').onclick=showStatus;
   $('#hist').onclick=()=>{S.view='history';render()};
 }
 function r2(a){
@@ -681,8 +737,73 @@ function renderDone(){
   <p>${esc(S.check.med.name)} / ${esc(S.rx.dose)} / ${esc(l.timeSlot)}</p>
   <div class="detail"><span class="detail-item"><small>結果</small><b>${esc(l.status)}</b></span><span class="detail-item"><small>時刻</small><b>${hm(l.createdAt)}</b></span></div>
   ${l.reason?'<p class="hint">理由：'+esc(l.reason)+'</p>':''}<p class="hint">担当：${esc(S.staff.name)}</p></div>
-  <button class="pri" id="n1">同じ方の次の薬を確認する</button><button id="n2">別の利用者を確認する</button><button id="n3">服薬履歴を見る</button>`;
-  $('#n1').onclick=()=>go(3);$('#n2').onclick=()=>go(2);$('#n3').onclick=()=>{S.view='history';render()};
+  <button class="pri" id="n1">同じ方の次の薬を確認する</button><button id="n2">別の利用者を確認する</button><button id="nstatus">服薬状況一覧を見る</button><button id="n3">服薬履歴を見る</button>`;
+  $('#n1').onclick=()=>go(3);$('#n2').onclick=()=>go(2);$('#nstatus').onclick=showStatus;$('#n3').onclick=()=>{S.view='history';render()};
+}
+
+/* --- 服薬状況一覧 --- */
+function renderStatus(a){
+  const date=S.dashboardDate||ymd(new Date());
+  const slot=S.dashboardSlot||'すべて';
+  // 指定日に有効な処方だけを対象とする。1処方につき1件をカウント。
+  const rows=repo.getPrescriptions()
+    .filter(rx=>rx.startDate<=date&&date<=rx.endDate&&(slot==='すべて'||rx.timeSlot===slot))
+    .map(rx=>{
+      const person=repo.getResident(rx.residentId);
+      const med=repo.getMedicine(rx.medicineId);
+      const log=repo.findLog(rx.id,date,rx.timeSlot);
+      return {rx,person,med,log,status:log?log.status:'未確認'};
+    })
+    .sort((a,b)=>SLOTS.indexOf(a.rx.timeSlot)-SLOTS.indexOf(b.rx.timeSlot)
+       ||String(a.person?.room||'').localeCompare(String(b.person?.room||''),'ja')
+       ||String(a.rx.id).localeCompare(String(b.rx.id)));
+  const done=rows.filter(x=>x.status==='服薬済み').length;
+  const pending=rows.filter(x=>x.status==='未確認').length;
+  const attention=rows.length-done-pending;
+  const label=x=>x.status==='未確認'?'未確認':x.status;
+  const state=x=>x.status==='服薬済み'?'done':x.status==='未確認'?'pending':'attention';
+
+  a.innerHTML=`<span class="section-label">服薬管理 / 一覧</span>
+  <h2>服薬状況一覧</h2>
+  <p class="lead">日付と時間帯を選び、処方ごとの記録状況を確認できます。</p>
+  <div class="card status-toolbar">
+    <div><label class="status-date-label" for="status-date">確認する日付</label>
+      <input class="status-date-field" id="status-date" type="date" value="${esc(date)}"></div>
+    <div><span class="status-date-label">時間帯</span>
+      <div class="status-tabs" role="group" aria-label="時間帯の絞り込み">
+        ${['すべて',...SLOTS].map(t=>`<button type="button" data-status-slot="${esc(t)}" class="${t===slot?'active':''}" aria-pressed="${t===slot}">${esc(t)}</button>`).join('')}
+      </div>
+    </div>
+  </div>
+  <div class="status-summary" aria-label="服薬状況の集計">
+    <div class="status-summary-item completed"><span class="status-count">${done}<small>件</small></span><span class="status-heading">服薬済み</span></div>
+    <div class="status-summary-item"><span class="status-count">${pending}<small>件</small></span><span class="status-heading">未確認</span></div>
+    <div class="status-summary-item alert"><span class="status-count">${attention}<small>件</small></span><span class="status-heading">未服薬・拒否</span></div>
+  </div>
+  <p class="status-note">対象：${rows.length}件の処方。「未確認」は、この端末に記録がない状態です。実際に服薬していないことを意味しません。</p>
+  ${rows.length?SLOTS.filter(t=>slot==='すべて'||t===slot).map(t=>{
+    const entries=rows.filter(x=>x.rx.timeSlot===t);
+    if(!entries.length)return '';
+    return `<section class="card status-group" aria-label="${esc(t)}の服薬状況">
+      <div class="status-group-head"><h3>${esc(t)}</h3><small>${entries.length}件</small></div>
+      ${entries.map(x=>`<div class="status-entry">
+        <div class="status-entry-info">
+          <div class="status-person">${esc(x.person?.name||'利用者不明')}<span class="status-room">${esc(x.person?.room||'—')}号室</span></div>
+          <div class="status-med">${esc(x.med?.name||'薬剤不明')} / ${esc(x.rx.dose)}</div>
+          <div class="status-detail">処方番号：${esc(x.rx.id)}</div>
+        </div>
+        <div class="status-result"><span class="status-pill ${state(x)}">${esc(label(x))}</span>${x.log?`<span class="status-record-time">${hm(x.log.createdAt)}</span>`:''}</div>
+      </div>`).join('')}
+    </section>`;
+  }).join(''):'<div class="status-empty">選択した日付・時間帯に有効な処方はありません。</div>'}
+  <p class="hint">表示される記録は、この端末のブラウザに保存されたものだけです。他の端末とは同期されません。</p>
+  <button class="pri" id="status-back">服薬確認に戻る</button>
+  <button id="status-history">服薬履歴を見る</button>`;
+  $('#status-date').onchange=e=>{if(e.target.value){S.dashboardDate=e.target.value;renderStatus(a)}};
+  a.querySelectorAll('[data-status-slot]').forEach(b=>b.onclick=()=>{S.dashboardSlot=b.dataset.statusSlot;renderStatus(a)});
+  $('#status-back').onclick=()=>go(1);
+  $('#status-history').onclick=()=>{S.view='history';render()};
+  window.scrollTo(0,0);
 }
 
 /* --- 履歴 --- */
@@ -697,10 +818,11 @@ function renderHistory(a){
   </div></div>
   <div class="table-wrap"><table><tr><th>時刻</th><th>利用者</th><th>薬 / 時間帯</th><th>結果</th><th>担当</th></tr>
   ${logs.map(l=>`<tr class="${l.status!=='服薬済み'?'bad':''}"><td>${hm(l.createdAt)}</td><td>${esc(repo.getResident(l.residentId)?.name)}</td><td>${esc(repo.getMedicine(l.medicineId)?.name)}<br>${esc(l.timeSlot)}</td><td>${esc(l.status)}${l.reason?'<br><small>'+esc(l.reason)+'</small>':''}</td><td>${esc(repo.getStaff(l.staffId)?.name)}</td></tr>`).join('')||'<tr><td colspan="5">該当する記録がありません。</td></tr>'}</table></div>
-  <button id="csv">CSV形式で書き出す</button><button id="rst">テストデータを初期化する</button><button id="back">確認画面に戻る</button>`;
+  <button id="csv">CSV形式で書き出す</button><button id="history-status">服薬状況一覧を見る</button><button id="rst">テストデータを初期化する</button><button id="back">確認画面に戻る</button>`;
   $('#fr').onchange=e=>{S.hr=e.target.value;renderHistory(a)};
   $('#fd').onchange=e=>{S.hd=e.target.value;renderHistory(a)};
-  $('#back').onclick=()=>{S.view='flow';render()};
+  $('#back').onclick=()=>go(1);
+  $('#history-status').onclick=showStatus;
   $('#rst').onclick=()=>{if(confirm('記録とサンプルデータを初期化します。よろしいですか？')){repo.reset();renderHistory(a)}};
   $('#csv').onclick=()=>{
     const rows=[['日付','時刻','利用者','薬','時間帯','結果','理由','職員']].concat(logs.map(l=>[l.date,hm(l.createdAt),repo.getResident(l.residentId)?.name,repo.getMedicine(l.medicineId)?.name,l.timeSlot,l.status,l.reason,repo.getStaff(l.staffId)?.name]));
