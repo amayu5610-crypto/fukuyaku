@@ -3,270 +3,59 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>服薬確認 | 記録・照合</title>
-<!-- QR解析ライブラリ。片方の配信元につながらない場合のために2か所から読み込む -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
-<script>window.qrLibraryReady = typeof window.jsQR === 'function';</script>
-<script>if (!window.qrLibraryReady) {document.write('<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"><\/script>')}</script>
+<title>服薬確認アプリ</title>
+<script onerror="window.jsqrFail=1" src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
 <style>
-/* ---------- Base ---------- */
-:root {
-  --page: #f5f6f3;
-  --paper: #ffffff;
-  --ink: #26332f;
-  --muted: #64726c;
-  --line: #d9e0db;
-  --main: #286a5d;
-  --main-dark: #1b5147;
-  --main-soft: #eaf3ef;
-  --danger: #a33d36;
-  --danger-soft: #fff3f1;
-  --warning-soft: #fcf7ed;
-}
-* { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; }
-body {
-  margin: 0;
-  color: var(--ink);
-  background: var(--page);
-  font: 17px/1.65 -apple-system, BlinkMacSystemFont, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Yu Gothic', Meiryo, sans-serif;
-  letter-spacing: .01em;
-}
-button, input, select, textarea { font: inherit; }
-button { -webkit-tap-highlight-color: transparent; cursor: pointer; }
-button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid #8dbaa8; outline-offset: 2px; }
-button:disabled { opacity: .46; cursor: not-allowed; }
-
-/* ---------- Header / progress ---------- */
-header {
-  background: var(--paper);
-  border-bottom: 1px solid var(--line);
-}
-.header-inner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  margin: auto;
-  padding: 21px 24px 17px;
-  max-width: 760px;
-}
-.brand { display: flex; flex-direction: column; line-height: 1.25; gap: 2px; }
-.brand-label { color: var(--main); font-weight: 700; font-size: 11px; letter-spacing: .15em; }
-.brand-name { font-size: 24px; font-weight: 750; letter-spacing: .035em; }
-#who { font-size: 14px; font-weight: 600; color: var(--muted); text-align: right; }
-.steps {
-  display: flex;
-  gap: 0;
-  max-width: 712px;
-  margin: 0 auto;
-  padding: 0 10px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.steps::-webkit-scrollbar { display: none; }
-.steps span {
-  position: relative;
-  flex: 1 0 0;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 13px 2px 12px;
-  border-bottom: 3px solid transparent;
-  color: #7b8881;
-  font-size: 13px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-.steps span::before {
-  content: attr(data-number);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  flex: 0 0 20px;
-  border: 1px solid #c9d2cc;
-  border-radius: 50%;
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  color: #748079;
-}
-.steps span.on { color: var(--main-dark); border-color: var(--main); }
-.steps span.on::before { color: #fff; background: var(--main); border-color: var(--main); }
-.steps span.done { color: #546c5e; }
-.steps span.done::before { color: var(--main); border-color: var(--main); }
-.steps span.history-step { flex: 0 0 auto; padding-left: 10px; padding-right: 10px; }
-.steps span.history-step::before { display: none; }
-
-/* ---------- Content ---------- */
-main { margin: 0 auto; max-width: 712px; padding: 27px 22px 68px; }
-h2 { font-size: clamp(24px, 5vw, 29px); font-weight: 750; line-height: 1.4; letter-spacing: -.035em; margin: 0 0 10px; }
-h3 { font-size: 17px; margin: 0 0 13px; font-weight: 700; }
-p { margin: 9px 0 14px; }
-.lead { color: var(--muted); font-size: 15px; line-height: 1.7; margin: 0 0 22px; }
-.section-label { display: block; margin: 0 0 8px; color: var(--main); font-size: 12px; font-weight: 750; letter-spacing: .1em; }
-.card {
-  background: var(--paper);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 20px 22px;
-  margin-bottom: 15px;
-}
-.card > b:first-child { font-weight: 700; }
-.card .hint:last-child { margin-bottom: 0; }
-.hint { color: var(--muted); font-size: 14px; line-height: 1.65; }
-.big { font-size: 27px; font-weight: 750; line-height: 1.45; letter-spacing: -.02em; }
-.detail { display: flex; flex-wrap: wrap; align-items: baseline; gap: 7px 19px; }
-.detail-item { display: inline-flex; align-items: baseline; gap: 8px; }
-.detail-item small { font-size: 13px; color: var(--muted); }
-.detail-item b { font-size: 17px; }
-
-/* ---------- Buttons / form controls ---------- */
-button, .btn {
-  display: block;
-  width: 100%;
-  min-height: 54px;
-  background: var(--paper);
-  border: 1px solid #c9d4cd;
-  border-radius: 9px;
-  color: var(--ink);
-  text-align: center;
-  padding: 13px 19px;
-  margin: 10px 0;
-  font-size: 16px;
-  font-weight: 700;
-  line-height: 1.45;
-  transition: background .12s, border-color .12s;
-}
-button:not(:disabled):active { background: #edf2ee; }
-button.pri, button.ok {
-  background: var(--main);
-  color: #fff;
-  border-color: var(--main);
-}
-button.pri:not(:disabled):active, button.ok:not(:disabled):active { background: var(--main-dark); }
-button.ng { color: var(--danger); border-color: #e4b7b2; background: #fff; }
-button.ng:not(:disabled):active { background: var(--danger-soft); }
-button.sel { border-color: var(--main); background: var(--main-soft); color: var(--main-dark); box-shadow: inset 0 0 0 1px var(--main); }
-button.sel.pri { color: #fff; background: var(--main); }
-button.staff-choice, button.rc {
-  display: flex; align-items: center; justify-content: space-between;
-  text-align: left; padding: 18px 20px; min-height: 72px; margin: 0 0 9px;
-}
-button.staff-choice::after, button.rc::after {
-  content: ''; display: block; width: 8px; height: 8px;
-  border-top: 2px solid #778b81; border-right: 2px solid #778b81;
-  transform: rotate(45deg); flex-shrink: 0; margin-left: 14px;
-}
-.staff-choice-name { font-size: 19px; font-weight: 700; }
-.choice-caption { display: block; color: var(--muted); font-size: 13px; font-weight: 500; margin-top: 3px; }
-button.rc { justify-content: flex-start; gap: 14px; }
-button.rc::after { margin-left: auto; }
-.rc img { width: 64px; height: 64px; flex: 0 0 64px; border-radius: 8px; border: 1px solid var(--line); object-fit: cover; }
-.rc .resident-name { font-size: 19px; font-weight: 750; display: block; }
-.rc .resident-info { font-size: 13px; font-weight: 500; color: var(--muted); display: block; }
-.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin: 12px 0 10px; }
-.grid button { margin: 0; min-height: 56px; }
-.row { display: flex; gap: 10px; }
-.row > * { flex: 1; min-width: 0; }
-#back:not(.ng) { background: transparent; border: 0; color: var(--muted); text-align: left; font-size: 14px; padding: 10px 0; margin-top: 18px; min-height: 42px; width: auto; }
-#hist, #n3 { margin-top: 17px; background: transparent; border-color: var(--line); font-size: 15px; }
-#stop { background: transparent; border-color: var(--line); color: var(--muted); font-size: 15px; }
-#rst { border: 1px solid #e7c4c1; background: #fff; color: var(--danger); font-size: 15px; }
-input, select, textarea {
-  display: block; width: 100%; min-height: 51px; background: #fff;
-  border: 1px solid #bdcac2; border-radius: 8px; padding: 11px 13px;
-  color: var(--ink); font-size: 16px;
-}
-input::placeholder, textarea::placeholder { color: #84928a; }
-input + button, textarea + button { margin-top: 12px; }
-select { cursor: pointer; }
-textarea { resize: vertical; min-height: 100px; }
-label.ack { display: flex; align-items: center; gap: 12px; padding: 14px 0 4px; font-weight: 700; font-size: 15px; }
-label.ack input { width: 21px; height: 21px; min-height: 0; flex-shrink: 0; accent-color: var(--main); }
-.photo { width: 132px; height: 132px; border-radius: 9px; object-fit: cover; border: 1px solid var(--line); margin-bottom: 8px; }
-.person-card { text-align: center; padding: 29px 20px; }
-.person-card .person-room { display: inline-block; margin-top: 14px; padding: 4px 15px; border-radius: 5px; background: var(--page); color: var(--muted); font-weight: 700; font-size: 14px; }
-
-/* ---------- QR / status ---------- */
-.qrguide {
-  background: var(--warning-soft);
-  border: 1px solid #eee1c8;
-  border-left: 3px solid #c9a367;
-  border-radius: 7px;
-  padding: 13px 16px;
-  font-size: 14px;
-  line-height: 1.7;
-  margin: 14px 0 19px;
-}
-.qrguide b { color: #5f4c2c; }
-#cam { padding: 5px 0 12px; }
-#cam video, video { width: 100%; max-height: 56vh; display: block; object-fit: contain; background: #14211f; border-radius: 10px; }
-#qrphoto { font-size: 14px; padding: 10px; min-height: 53px; }
-.err { background: var(--danger-soft); border-left: 4px solid var(--danger); color: #832f2c; border-radius: 5px; padding: 12px 15px; margin: 14px 0; font-size: 15px; font-weight: 650; line-height: 1.7; overflow-wrap: anywhere; }
-.res { text-align: left; padding: 23px 23px 24px; border: 1px solid var(--line); border-left: 5px solid var(--main); background: #fff; border-radius: 9px; margin: 0 0 18px; }
-.res.ok { border-left-color: var(--main); }
-.res.ng { border-left-color: var(--danger); background: var(--danger-soft); border-top-color: #f0d6d3; border-right-color: #f0d6d3; border-bottom-color: #f0d6d3; }
-.res .result-label { font-size: 13px; font-weight: 750; color: var(--main); margin-bottom: 5px; }
-.res.ng .result-label { color: var(--danger); }
-.res .big { font-size: 27px; }
-.res .result-note { font-size: 15px; color: var(--muted); margin-top: 2px; }
-.res.ng .result-note { color: #89463e; }
-.chk { padding: 0; margin: 0; list-style: none; }
-.chk li { display: flex; align-items: flex-start; gap: 12px; padding: 14px 2px; font-size: 15px; font-weight: 600; border-bottom: 1px solid #e4e9e5; }
-.chk li:first-child { padding-top: 3px; }
-.chk li:last-child { border: 0; padding-bottom: 3px; }
-.chk li::before { content: '確認'; background: var(--main-soft); color: var(--main-dark); padding: 2px 7px; font-size: 11px; font-weight: 750; border-radius: 4px; flex: 0 0 auto; }
-.chk li.f::before { content: '注意'; color: var(--danger); background: #fbe6e3; }
-.chk li.f { color: #8f3630; }
-.warnbox { background: var(--danger-soft); color: #86332d; border: 1px solid #edccc7; border-left: 4px solid var(--danger); border-radius: 7px; padding: 15px 18px; font-weight: 700; font-size: 16px; margin-bottom: 15px; }
-.status-choice.sel.ok { background: var(--main-soft); color: var(--main-dark); border-color: var(--main); }
-.status-choice.sel.ng { background: var(--danger-soft); color: #8f3630; border-color: var(--danger); }
-.ov { position: fixed; inset: 0; background: rgb(19 34 30 / 57%); display: flex; align-items: center; justify-content: center; padding: 18px; z-index: 20; }
-.ov .card { width: 100%; max-width: 440px; margin: 0; box-shadow: 0 18px 60px rgb(0 0 0 / 13%); }
-
-/* ---------- Log ---------- */
-.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 9px; background: #fff; margin-bottom: 17px; }
-table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 570px; }
-th { color: var(--muted); font-size: 12px; font-weight: 750; background: #f4f7f4; }
-th, td { border-bottom: 1px solid var(--line); padding: 12px 13px; text-align: left; vertical-align: top; }
-tr:last-child td { border-bottom: 0; }
-tr.bad { color: var(--danger); background: var(--danger-soft); }
-tr.bad td { font-weight: 650; }
-.history-tools { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.history-tools label { display: block; color: var(--muted); font-size: 12px; font-weight: 650; margin-bottom: 6px; }
-
-@media (max-width: 480px) {
-  body { font-size: 16px; }
-  .header-inner { padding: 18px 17px 14px; }
-  .brand-name { font-size: 22px; }
-  #who { font-size: 12px; }
-  .steps { padding: 0 6px; }
-  .steps span { flex-direction: column; gap: 3px; font-size: 11px; padding: 9px 0 8px; }
-  .steps span::before { width: 19px; height: 19px; flex-basis: 19px; }
-  main { padding: 24px 16px 55px; }
-  .card { padding: 17px 16px; }
-  button.staff-choice, button.rc { padding: 16px; }
-  .big, .res .big { font-size: 23px; }
-  .row { flex-direction: column; gap: 0; }
-  .history-tools { grid-template-columns: 1fr; }
-}
-@media (prefers-reduced-motion: reduce) { button { transition: none; } }
+:root{--bg:#f4f6f8;--fg:#111;--card:#fff;--line:#333;--pri:#0b4f9c;--ok:#0a6b2d;--ng:#b00020;--warn:#fff3cd}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:18px/1.6 -apple-system,"Hiragino Sans","Noto Sans JP",sans-serif}
+header{background:var(--pri);color:#fff;padding:10px 14px;position:sticky;top:0;z-index:5}
+header b{font-size:20px}
+.steps{display:flex;gap:4px;margin-top:6px}
+.steps span{flex:1;text-align:center;font-size:13px;padding:2px 0;border-radius:4px;background:#ffffff33}
+.steps .on{background:#fff;color:var(--pri);font-weight:700}
+main{padding:14px;max-width:560px;margin:auto}
+h2{font-size:22px;margin:4px 0 12px}
+.card{background:var(--card);border:2px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
+button,.btn{display:block;width:100%;min-height:56px;font-size:19px;font-weight:700;border:2px solid var(--line);border-radius:12px;background:#fff;color:var(--fg);margin:8px 0;padding:10px;font-family:inherit}
+button.pri{background:var(--pri);color:#fff;border-color:var(--pri)}
+button.ok{background:var(--ok);color:#fff;border-color:var(--ok)}
+button.ng{background:var(--ng);color:#fff;border-color:var(--ng)}
+button.sel{outline:5px solid #ffb300}
+button:disabled{opacity:.4}
+.row{display:flex;gap:8px}.row>*{flex:1}
+input,select,textarea{width:100%;min-height:52px;font-size:18px;padding:8px;border:2px solid var(--line);border-radius:10px;font-family:inherit}
+.photo{width:140px;height:140px;border-radius:12px;border:2px solid var(--line);object-fit:cover}
+.big{font-size:30px;font-weight:700;line-height:1.3}
+.res{text-align:center;padding:20px 14px;border-radius:14px;color:#fff;margin-bottom:12px}
+.res.ok{background:var(--ok)}.res.ng{background:var(--ng)}
+.res .icon{font-size:64px;line-height:1}
+.chk{list-style:none;padding:0;margin:0}
+.chk li{padding:8px 10px;border-bottom:1px solid #ccc;font-weight:700}
+.chk .p{color:var(--ok)}.chk .f{color:var(--ng)}
+.warnbox{background:var(--warn);border:3px solid var(--ng);border-radius:12px;padding:12px;font-weight:700}
+label.ack{display:flex;gap:12px;align-items:center;font-weight:700;margin:12px 0}
+label.ack input{width:32px;height:32px;min-height:0}
+video{width:100%;border-radius:12px;background:#000;border:2px solid var(--line)}
+.err{background:#fde7ea;border:2px solid var(--ng);border-radius:10px;padding:10px;margin:8px 0;font-weight:700}
+.hint{font-size:16px;color:#333}
+.ov{position:fixed;inset:0;background:#000a;display:flex;align-items:center;justify-content:center;padding:16px;z-index:20}
+.ov .card{max-width:420px;width:100%}
+table{width:100%;border-collapse:collapse;font-size:16px}
+td,th{border:1px solid #888;padding:6px;text-align:left}
+tr.bad{background:#fde7ea;font-weight:700;color:var(--ng)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.rc{display:flex;align-items:center;gap:10px;text-align:left}
+.rc img{width:64px;height:64px;border-radius:8px;border:1px solid #333}
 </style>
 </head>
 <body>
-<header>
-  <div class="header-inner">
-    <div class="brand"><span class="brand-label">服薬管理</span><span class="brand-name">服薬確認</span></div>
-    <div id="who" aria-live="polite"></div>
-  </div>
-  <nav class="steps" id="steps" aria-label="服薬確認の進行状況"></nav>
-</header>
+<header><b>💊 服薬確認</b> <span id="who" style="float:right;font-size:15px"></span><div class="steps" id="steps"></div></header>
 <main id="app"></main>
 <script>
+/* ===== エラー表示（原因特定用）と読取部品の予備読込 ===== */
+window.addEventListener('error',e=>{const b=document.createElement('div');b.className='err';b.style.cssText='position:fixed;left:8px;right:8px;bottom:8px;z-index:50;background:#fde7ea';b.textContent='エラー: '+e.message+'（'+(e.lineno||'?')+'行）';document.body.appendChild(b)});
+function loadJsQR(){return new Promise(res=>{if(typeof jsQR==='function')return res(true);const t=document.createElement('script');t.src='https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';t.onload=()=>res(typeof jsQR==='function');t.onerror=()=>res(false);document.head.appendChild(t)})}
 /* ===== ユーティリティ ===== */
 const $=s=>document.querySelector(s);
 const SLOTS=['朝','昼','夕','就寝前'];
@@ -324,8 +113,8 @@ const S={step:1,staff:null,slot:currentSlot(),resident:null,rx:null,check:null,s
 const STEPS=['職員','利用者','薬QR','照合','記録'];
 function go(step){stopScan();S.step=step;S.view='flow';render()}
 function renderSteps(){
-  $('#steps').innerHTML=S.view==='flow'?STEPS.map((t,i)=>`<span data-number="${i+1}" class="${i+1===S.step?'on':i+1<S.step?'done':''}" ${i+1===S.step?'aria-current="step"':''}>${t}</span>`).join(''):'<span class="on history-step">服薬履歴</span>';
-  $('#who').textContent=S.staff?'担当：'+S.staff.name:'';
+  $('#steps').innerHTML=S.view==='flow'?STEPS.map((t,i)=>`<span class="${i+1===S.step?'on':''}">${i+1}/5 ${t}</span>`).join(''):'<span class="on">履歴</span>';
+  $('#who').textContent=S.staff?'👤 '+S.staff.name:'';
 }
 
 /* ===== 画面 ===== */
@@ -336,202 +125,103 @@ function render(){
   window.scrollTo(0,0);
 }
 function r1(a){
-  a.innerHTML=`<span class="section-label">STEP 01 / 職員</span>
-  <h2>担当職員を選択</h2>
-  <p class="lead">服薬確認を行う職員を選んでください。</p>
-  ${repo.getStaffList().map(s=>`<button class="staff-choice" data-staff="${s.id}"><span><span class="staff-choice-name">${esc(s.name)}</span><span class="choice-caption">担当職員</span></span></button>`).join('')}
-  <div class="card" style="margin-top:24px"><h3>服薬の時間帯</h3>
-  <div class="grid">${SLOTS.map(t=>`<button data-slot="${t}" class="${t===S.slot?'sel':''}" aria-pressed="${t===S.slot}">${t}</button>`).join('')}</div>
-  <p class="hint">現在時刻から「${currentSlot()}」を選択しています。必要に応じて変更できます。</p></div>
-  <button id="hist">過去の服薬記録を見る</button>`;
+  a.innerHTML=`<h2>① 職員を選んでください</h2>
+  <div class="card"><b>職員名</b>
+  <select id="stf" style="font-size:22px;min-height:60px;font-weight:700"><option value="">▼ タップして選択</option>${repo.getStaffList().map(x=>`<option value="${x.id}" ${S.staff&&S.staff.id===x.id?'selected':''}>${esc(x.name)}</option>`).join('')}</select></div>
+  <div class="card"><b>現在の時間帯</b>
+  <div class="grid">${SLOTS.map(t=>`<button data-slot="${t}" class="${t===S.slot?'sel pri':''}">${t===S.slot?'✔ ':''}${t}</button>`).join('')}</div>
+  <p class="hint">自動判定：${currentSlot()}（手動で変更できます）</p></div>
+  <button class="pri" id="go" ${S.staff?'':'disabled'}>次へ：利用者を選ぶ →</button>
+  <button id="hist">📋 服薬履歴を見る</button>`;
   a.querySelectorAll('[data-slot]').forEach(b=>b.onclick=()=>{S.slot=b.dataset.slot;r1(a)});
-  a.querySelectorAll('[data-staff]').forEach(b=>b.onclick=()=>{S.staff=repo.getStaff(b.dataset.staff);go(2)});
+  $('#stf').onchange=e=>{S.staff=repo.getStaff(e.target.value)||null;$('#go').disabled=!S.staff;renderSteps()};
+  $('#go').onclick=()=>go(2);
   $('#hist').onclick=()=>{S.view='history';render()};
 }
 function r2(a){
   S.resident=null;S.rx=null;
-  a.innerHTML=`<span class="section-label">STEP 02 / 利用者</span>
-  <h2>服薬する方を選択</h2>
-  <p class="lead">お名前とお部屋番号を確認して選んでください。</p>
-  ${repo.getResidents().map(r=>`<button class="rc" data-res="${r.id}"><img src="${r.photo}" alt=""><span><span class="resident-name">${esc(r.name)}</span><span class="resident-info">${esc(r.kana)}　/　${esc(r.room)}号室</span></span></button>`).join('')}
-  <button id="back">職員選択へ戻る</button>`;
+  a.innerHTML=`<h2>② ご本人の名前を選んでください</h2>
+  ${repo.getResidents().map(r=>`<button class="rc" data-res="${r.id}"><img src="${r.photo}" alt=""><span><span class="big" style="font-size:24px">${esc(r.name)}</span><br><span class="hint">${esc(r.kana)}／${esc(r.room)}号室</span></span></button>`).join('')}
+  <button id="back">← 職員選択へ戻る</button>`;
   a.querySelectorAll('[data-res]').forEach(b=>b.onclick=()=>{S.resident=repo.getResident(b.dataset.res);confirmResident(a)});
   $('#back').onclick=()=>go(1);
 }
 function confirmResident(a){ // 顔写真で本人確認
   const r=S.resident;
-  a.innerHTML=`<span class="section-label">STEP 02 / 本人確認</span>
-  <h2>ご本人の確認</h2>
-  <p class="lead">お名前と顔写真を確認し、目の前の方と一致するか確かめてください。</p>
-  <div class="card person-card"><img class="photo" src="${r.photo}" alt="登録された写真">
-  <div class="big">${esc(r.name)} さん</div><div class="hint">${esc(r.kana)}</div><div class="person-room">${esc(r.room)}号室</div></div>
-  <button class="pri" id="yes">本人であることを確認した</button><button id="no">選び直す</button>`;
+  a.innerHTML=`<h2>目の前の方で間違いないですか？</h2>
+  <div class="card" style="text-align:center"><img class="photo" src="${r.photo}" alt="顔写真">
+  <div class="big">${esc(r.name)} さん</div><div>${esc(r.kana)}</div><div class="big">🚪 ${esc(r.room)}号室</div></div>
+  <button class="ok" id="yes">✔ 本人です</button><button class="ng" id="no">✖ 違います（選び直す）</button>`;
   $('#yes').onclick=()=>go(3);$('#no').onclick=()=>go(2);
 }
 
 /* --- 薬QR読取 --- */
-let stream=null,raf=0,busy=false,scanSession=0,starting=false,lastScan=0;
-let bd=null;
-try{if('BarcodeDetector' in window)bd=new BarcodeDetector({formats:['qr_code']})}catch(e){bd=null}
-
-function hasDecoder(){return !!bd || typeof window.jsQR === 'function'}
-function stopScan(){
-  ++scanSession;
-  cancelAnimationFrame(raf);raf=0;
-  if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
-  const v=$('#video');if(v)v.srcObject=null;
-}
+let stream=null,raf=0;
+function stopScan(){cancelAnimationFrame(raf);if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}}
 function r3(a){
   const r=S.resident;
-  a.innerHTML=`<span class="section-label">STEP 03 / 薬袋の確認</span>
-  <h2>薬袋のQRコードを読み取る</h2>
-  <p class="lead">カメラを使って薬袋のQRコードを読み取ってください。</p>
-  <div class="card"><div class="detail"><span class="detail-item"><small>利用者</small><b>${esc(r.name)} さん</b></span><span class="detail-item"><small>時間帯</small><b>${esc(S.slot)}</b></span></div></div>
-  <div class="qrguide"><b>テスト用のQRコードについて</b><br>登録されている処方番号は <b>P001〜P007</b> です。URLや薬品番号（例：M001）のQRコードは照合できません。</div>
-  <div id="cam" style="display:none">
-    <p class="hint">QRを中央に置いて、少しずつ距離を変えてください。明るい場所でピントを合わせます。</p>
-    <video id="video" autoplay playsinline muted></video>
-    <button id="stop">カメラを停止する</button>
-  </div>
-  <div id="msg" role="status" aria-live="polite"></div>
-  <button class="pri" id="start">カメラを起動する</button>
-  <div class="card" style="margin-top:22px"><h3>写真から読み取る</h3>
-    <p class="hint">カメラが使えない場合は、QRコードが写っている写真を選んでください。</p>
-    <input type="file" id="qrphoto" accept="image/*" aria-label="QRコードの写真を選ぶ">
-  </div>
-  <div class="card"><h3>処方番号を入力する</h3>
-    <p class="hint">QRを読み取れない場合は処方番号を直接入力できます。</p>
-    <input id="code" placeholder="例：P001" autocapitalize="characters" autocomplete="off" inputmode="text" aria-label="処方番号">
-    <button id="manual">番号を照合する</button>
-  </div>
-  <button id="back">利用者選択へ戻る</button>
+  a.innerHTML=`<h2>③ 薬袋のQRを読み取ってください</h2>
+  <div class="card">対象：<b>${esc(r.name)}</b> さん ／ 時間帯：<b>${S.slot}</b></div>
+  <div id="cam" style="display:none"><p class="hint">QRを画面の中央に、20〜30cm離して写してください。明るい場所で、ピントが合うまで少し待ちます。</p><video id="video" playsinline muted></video><button id="stop">■ 読み取りを止める</button></div>
+  <div id="msg"></div>
+  <button class="pri" id="start">📷 読み取り開始</button>
+  <div class="card"><b>カメラが使えない場合：手入力</b>
+  <input id="code" placeholder="例：P001" autocapitalize="characters" autocomplete="off">
+  <button id="manual">入力した番号で照合</button></div>
+  <button id="back">← 利用者を選び直す</button>
   <canvas id="cv" hidden></canvas>`;
   $('#start').onclick=startScan;
   $('#stop').onclick=()=>{stopScan();$('#cam').style.display='none';$('#start').style.display=''};
   $('#manual').onclick=()=>onCode($('#code').value);
-  $('#qrphoto').onchange=photoScan;
   $('#back').onclick=()=>go(2);
-  if(!hasDecoder())msg('QR読み取り部品を読み込めませんでした。インターネット接続を確認して再読み込みしてください。番号の手入力はできます。');
+  if(S.noAuto){S.noAuto=false}else{startScan()} // 自動起動（失敗時は「読み取り開始」ボタンで再試行）
 }
-function msg(t){const el=$('#msg');if(el)el.innerHTML=t?`<div class="err">${t}</div>`:''}
-
+function msg(t){$('#msg').innerHTML=t?`<div class="err">${t}</div>`:''}
 async function startScan(){
-  if(starting||stream)return;
-  if(!hasDecoder()){
-    msg('QRを認識する部品がありません。インターネット接続を確認して再読み込みするか、手入力をお使いください。');return;
-  }
-  if(!navigator.mediaDevices?.getUserMedia){
-    msg('カメラが使えません。HTTPSで公開したページをSafari／Chromeで開いてください。HTMLファイルを直接開いた場合も、端末によっては動作しません。');return;
-  }
-  starting=true;
-  const session=++scanSession;
-  msg('カメラへの接続を確認しています。');
-  let opened=null;
+  msg(window.jsqrFail&&!('BarcodeDetector' in window)?'⚠ 読み取り部品を読み込めませんでした。通信を確認して再読み込みするか、手入力をお使いください。':'');
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+    msg('⚠ このブラウザ／接続ではカメラを使えません（HTTPSで開いているか確認してください）。下の手入力をお使いください。');return}
   try{
-    try{
-      opened=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false});
-    }catch(e){
-      // カメラの条件が厳しすぎる端末では条件を緩めて再試行
-      if(e.name!=='OverconstrainedError' && e.name!=='NotFoundError')throw e;
-      opened=await navigator.mediaDevices.getUserMedia({video:true,audio:false});
-    }
-    if(session!==scanSession || !$('#video')){opened.getTracks().forEach(t=>t.stop());return}
-    stream=opened;
-    $('#cam').style.display='block';$('#start').style.display='none';
-    const v=$('#video');v.srcObject=stream;
-    await v.play();
-    if(session!==scanSession)return;
-    msg('カメラを起動しました。QRコードを映してください。');
-    lastScan=0;loop(session);
+    await loadJsQR();
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}},audio:false});
+    const v=$('#video');v.srcObject=stream;await v.play();
+    $('#cam').style.display='block';$('#start').style.display='none';loop();
   }catch(e){
-    if(opened){opened.getTracks().forEach(t=>t.stop());if(stream===opened)stream=null}
-    if(session!==scanSession)return;
-    if($('#cam'))$('#cam').style.display='none';
-    if($('#start'))$('#start').style.display='';
     if(e.name==='NotAllowedError'||e.name==='SecurityError')
-      msg('カメラが許可されていません。Safari／Chromeのサイト設定でカメラを許可してから、再度押してください。HTTPSでのアクセスも確認してください。');
-    else if(e.name==='NotReadableError')
-      msg('カメラが別のアプリで使用中の可能性があります。ほかのカメラアプリを閉じて再試行してください。');
-    else if(e.name==='NotFoundError')msg('カメラが見つかりません。写真または手入力をお使いください。');
-    else msg('カメラを起動できません（'+esc(e.name||'unknown')+'）。写真または手入力をお使いください。');
-  }finally{starting=false}
-}
-
-async function decodeQR(source,cv){
-  // BarcodeDetectorが失敗しても、jsQRに必ずフォールバックする
-  if(bd){
-    try{
-      const results=await bd.detect(source);
-      if(results?.length && results[0].rawValue)return results[0].rawValue;
-    }catch(e){bd=null;console.warn('BarcodeDetector を無効化し jsQR に切り替えます',e)}
+      msg('⚠ カメラが許可されていません。<br>【iPhone】設定 → Safari → カメラ → 「許可」<br>【Android】アドレスバー左の鍵マーク → 権限 → カメラを許可<br>変更後、このページを再読み込みしてください。');
+    else if(e.name==='NotFoundError')msg('⚠ カメラが見つかりません。手入力をお使いください。');
+    else msg('⚠ カメラを起動できません（'+esc(e.name)+'）。手入力をお使いください。');
   }
-  if(typeof window.jsQR!=='function')return null;
-  const w=source.videoWidth || source.naturalWidth || source.width;
-  const h=source.videoHeight || source.naturalHeight || source.height;
-  if(!w||!h)return null;
-  const scale=Math.min(1,1600/Math.max(w,h));
-  cv.width=Math.max(1,Math.round(w*scale));cv.height=Math.max(1,Math.round(h*scale));
-  const c=cv.getContext('2d',{willReadFrequently:true});
-  if(!c)return null;
-  c.drawImage(source,0,0,cv.width,cv.height);
-  const pix=c.getImageData(0,0,cv.width,cv.height);
-  const qr=window.jsQR(pix.data,pix.width,pix.height,{inversionAttempts:'attemptBoth'});
-  return qr?.data||null;
 }
-
-function loop(session){
-  if(session!==scanSession || !stream || !$('#video'))return;
-  const v=$('#video'),cv=$('#cv');
-  const now=performance.now();
-  if(!busy && now-lastScan>=140 && v.readyState>=v.HAVE_CURRENT_DATA && v.videoWidth){
-    busy=true;lastScan=now;
+let bd=null;
+try{if('BarcodeDetector' in window)bd=new BarcodeDetector({formats:['qr_code']})}catch(e){}
+let busy=false;
+function loop(){
+  const v=$('#video'),cv=$('#cv');if(!v||!stream)return;
+  if(v.readyState===v.HAVE_ENOUGH_DATA&&v.videoWidth&&!busy){
+    busy=true;
     (async()=>{
       try{
-        const data=await decodeQR(v,cv);
-        if(data && session===scanSession && stream){stopScan();onCode(data)}
-      }catch(e){console.warn('QR画像解析に失敗',e)}
-      finally{busy=false}
+        let data=null;
+        if(bd){const r=await bd.detect(v);if(r.length)data=r[0].rawValue}
+        if(!data&&typeof jsQR==='function'){
+          const k=Math.min(1,1280/v.videoWidth);cv.width=Math.round(v.videoWidth*k);cv.height=Math.round(v.videoHeight*k);
+          const c=cv.getContext('2d',{willReadFrequently:true});c.drawImage(v,0,0,cv.width,cv.height);
+          const q=jsQR(c.getImageData(0,0,cv.width,cv.height).data,cv.width,cv.height,{inversionAttempts:'attemptBoth'});
+          if(q&&q.data)data=q.data}
+        if(data&&stream){stopScan();busy=false;onCode(data);return}
+      }catch(e){}
+      busy=false;
     })();
   }
-  raf=requestAnimationFrame(()=>loop(session));
-}
-
-function loadImage(file){
-  return new Promise((resolve,reject)=>{
-    const url=URL.createObjectURL(file),im=new Image();
-    im.onload=()=>{URL.revokeObjectURL(url);resolve(im)};
-    im.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('画像形式を読み込めません'))};
-    im.src=url;
-  });
-}
-async function photoScan(e){
-  const file=e.target.files?.[0];if(!file)return;
-  if(!hasDecoder()){msg('QR読み取り部品がありません。通信を確認するか手入力してください。');return}
-  stopScan();
-  $('#cam').style.display='none';$('#start').style.display='';
-  msg('写真のQRコードを確認しています。');
-  try{
-    const im=await loadImage(file);
-    if(!$('#cv'))return;
-    const data=await decodeQR(im,$('#cv'));
-    if(data){onCode(data)}
-    else msg('この写真からQRが見つかりませんでした。QRが大きく鮮明に写った写真を選んでください。');
-  }catch(e){msg('写真を処理できませんでした（'+esc(e.message)+'）。JPEG／PNGなどをお試しください。')}
-  finally{if($('#qrphoto'))$('#qrphoto').value=''}
+  raf=requestAnimationFrame(loop);
 }
 function onCode(raw){
   const code=String(raw||'').trim().toUpperCase();
-  if(!S.resident)return;
-  if(!code){msg('番号を入力してください。');return}
+  if(!S.resident){return}
+  if(!code){msg('⚠ 番号を入力してください。');return}
   const rx=/^P\d{3}$/.test(code)?repo.getPrescription(code):null;
-  if(!rx){
-    stopScan();
-    if($('#cam'))$('#cam').style.display='none';
-    if($('#start'))$('#start').style.display='';
-    const shown=esc(code.slice(0,100))+(code.length>100?'…':'');
-    msg('QRは検出しましたが、このアプリには登録されていません。読み取った内容：<b>'+shown+'</b><br>登録されている処方番号（P001〜P007）が入ったQRか確認してください。');
-    return;
-  }
+  if(!rx){stopScan();S.noAuto=true;render();msg('⚠ このQRは登録されていません（'+esc(code.slice(0,20))+'）。薬袋のQRか確認してください。');return}
   S.rx=rx;S.check=verify(rx);go(4);
 }
 
@@ -548,22 +238,19 @@ function verify(rx){
 }
 function r4(a){
   const {items,ok,med}=S.check,rx=S.rx;
-  const list=`<div class="card"><h3>照合項目</h3><ul class="chk">${items.map(i=>`<li class="${i.ng?'f':'p'}">${esc(i.ng?i.ngText:i.okText)}</li>`).join('')}</ul></div>`;
+  const list=`<div class="card"><ul class="chk">${items.map(i=>`<li class="${i.ng?'f':'p'}">${i.ng?'⚠ '+esc(i.ngText):'✔ '+esc(i.okText)}</li>`).join('')}</ul></div>`;
   if(ok){
-    a.innerHTML=`<span class="section-label">STEP 04 / 照合結果</span>
-    <div class="res ok"><div class="result-label">照合完了</div><div class="big">内容が一致しました</div><div class="result-note">本人・服薬時間帯・処方期間を確認しました。</div></div>
-    <div class="card"><h3>処方内容</h3><div class="big">${esc(med.name)}</div>
-    <div class="detail" style="margin-top:10px"><span class="detail-item"><small>用量</small><b>${esc(rx.dose)}</b></span><span class="detail-item"><small>時間帯</small><b>${esc(rx.timeSlot)}</b></span></div>
-    <p class="hint">${esc(med.shape)} / ${esc(med.note)}</p></div>${list}
-    <button class="pri" id="next">服薬結果の記録へ進む</button><button id="back">QRコードを読み直す</button>`;
+    a.innerHTML=`<div class="res ok"><div class="icon">✔</div><div class="big">OK</div><div>本人・時間帯・期間すべて一致</div></div>
+    <div class="card"><div class="big">${esc(med.name)}</div><div class="big">用量：${esc(rx.dose)}</div><div class="big">時間帯：${esc(rx.timeSlot)}</div>
+    <p>${esc(med.shape)}／${esc(med.note)}</p></div>${list}
+    <button class="ok" id="next">服薬を確認する →</button><button id="back">← やり直す</button>`;
     $('#next').onclick=()=>{S.status=null;S.reason='';go(5)};
   }else{
     if(navigator.vibrate)navigator.vibrate([400,150,400,150,400]);
-    a.innerHTML=`<span class="section-label">STEP 04 / 照合結果</span>
-    <div class="res ng"><div class="result-label">照合エラー</div><div class="big">薬を渡さないでください</div><div class="result-note">処方内容と一致しない項目があります。</div></div>
-    <div class="warnbox">${items.filter(i=>i.ng).map(i=>esc(i.ngText)).join('<br>')}</div>${list}
-    <label class="ack"><input type="checkbox" id="ack"> 確認内容を読みました</label>
-    <button class="ng" id="back" disabled>QRコードを読み直す</button>`;
+    a.innerHTML=`<div class="res ng"><div class="icon">⚠</div><div class="big">NG 渡さないでください</div></div>
+    <div class="warnbox">${items.filter(i=>i.ng).map(i=>'⚠ '+esc(i.ngText)).join('<br>')}</div>${list}
+    <label class="ack"><input type="checkbox" id="ack"> 警告の内容を読みました</label>
+    <button class="ng" id="back" disabled>← 戻る（薬QRを読み直す）</button>`;
     $('#ack').onchange=e=>{$('#back').disabled=!e.target.checked};
   }
   $('#back').onclick=()=>go(3);
@@ -573,18 +260,16 @@ function r4(a){
 const REASONS=['食事を摂れなかった','体調不良','眠っていた','嘔吐した','本人が飲みたくないと言った','その他'];
 function r5(a){
   const med=S.check.med,rx=S.rx,st=S.status;
-  a.innerHTML=`<span class="section-label">STEP 05 / 結果の記録</span>
-  <h2>服薬結果を記録</h2>
-  <p class="lead">実際の服薬状況を確認してから、結果を選択してください。</p>
-  <div class="card"><div class="detail"><span class="detail-item"><small>利用者</small><b>${esc(S.resident.name)} さん</b></span><span class="detail-item"><small>時間帯</small><b>${esc(rx.timeSlot)}</b></span></div><p style="margin-bottom:0">${esc(med.name)} / ${esc(rx.dose)}</p></div>
-  <h3>確認結果</h3>
-  <button data-st="服薬済み" class="status-choice ${st==='服薬済み'?'sel ok':''}">服薬済み</button>
-  <button data-st="未服薬" class="status-choice ${st==='未服薬'?'sel ng':''}">未服薬</button>
-  <button data-st="拒否" class="status-choice ${st==='拒否'?'sel ng':''}">拒否</button>
+  a.innerHTML=`<h2>⑤ 服薬の結果を記録</h2>
+  <div class="card"><b>${esc(S.resident.name)}</b> さん／${esc(med.name)}／${esc(rx.dose)}／${esc(rx.timeSlot)}</div>
+  <p>実際に服薬を確認してから選んでください。</p>
+  <button data-st="服薬済み" class="${st==='服薬済み'?'sel ok':''}">✔ 服薬済み</button>
+  <button data-st="未服薬" class="${st==='未服薬'?'sel ng':''}">✖ 未服薬</button>
+  <button data-st="拒否" class="${st==='拒否'?'sel ng':''}">⛔ 拒否</button>
   ${st&&st!=='服薬済み'?`<div class="card"><b>理由（必須）</b>
    <select id="rs"><option value="">-- 選択 --</option>${REASONS.map(r=>`<option ${S.rsel===r?'selected':''}>${r}</option>`).join('')}</select>
    <textarea id="rf" rows="3" placeholder="自由入力（任意・補足）">${esc(S.rfree||'')}</textarea></div>`:''}
-  <button class="pri" id="save" ${st?'':'disabled'}>この結果を保存する</button><button id="back">QRコードを読み直す</button>`;
+  <button class="pri" id="save" ${st?'':'disabled'}>保存する</button><button id="back">← 照合に戻る</button>`;
   a.querySelectorAll('[data-st]').forEach(b=>b.onclick=()=>{S.status=b.dataset.st;r5(a)});
   if($('#rs'))$('#rs').onchange=e=>S.rsel=e.target.value;
   if($('#rf'))$('#rf').oninput=e=>S.rfree=e.target.value;
@@ -613,13 +298,10 @@ function confirmDlg(reason){
 }
 function renderDone(){
   const l=S.saved,a=$('#app');renderSteps();
-  a.innerHTML=`<span class="section-label">記録完了</span>
-  <div class="res ok"><div class="result-label">保存済み</div><div class="big">記録が完了しました</div><div class="result-note">服薬結果を保存しました。</div></div>
-  <div class="card"><h3>保存した内容</h3><div class="big" style="font-size:20px">${esc(S.resident.name)} さん</div>
-  <p>${esc(S.check.med.name)} / ${esc(S.rx.dose)} / ${esc(l.timeSlot)}</p>
-  <div class="detail"><span class="detail-item"><small>結果</small><b>${esc(l.status)}</b></span><span class="detail-item"><small>時刻</small><b>${hm(l.createdAt)}</b></span></div>
-  ${l.reason?'<p class="hint">理由：'+esc(l.reason)+'</p>':''}<p class="hint">担当：${esc(S.staff.name)}</p></div>
-  <button class="pri" id="n1">同じ方の次の薬を確認する</button><button id="n2">別の利用者を確認する</button><button id="n3">服薬履歴を見る</button>`;
+  a.innerHTML=`<div class="res ok"><div class="icon">✔</div><div class="big">記録しました</div></div>
+  <div class="card"><b>${esc(S.resident.name)}</b> さん<br>${esc(S.check.med.name)}／${esc(S.rx.dose)}／${esc(l.timeSlot)}<br>
+  結果：<b>${esc(l.status)}</b>${l.reason?'<br>理由：'+esc(l.reason):''}<br>時刻：${hm(l.createdAt)}／担当：${esc(S.staff.name)}</div>
+  <button class="pri" id="n1">💊 次の薬へ（同じ方）</button><button id="n2">👤 次の利用者へ</button><button id="n3">📋 服薬履歴</button>`;
   $('#n1').onclick=()=>go(3);$('#n2').onclick=()=>go(2);$('#n3').onclick=()=>{S.view='history';render()};
 }
 
@@ -627,15 +309,12 @@ function renderDone(){
 function renderHistory(a){
   const fr=S.hr||'',fd=S.hd===undefined?ymd(new Date()):S.hd;
   const logs=repo.getLogs().filter(l=>(!fr||l.residentId===fr)&&(!fd||l.date===fd)).sort((x,y)=>y.createdAt.localeCompare(x.createdAt));
-  a.innerHTML=`<span class="section-label">服薬記録</span><h2>服薬履歴</h2>
-  <p class="lead">日付と利用者を指定して記録を確認できます。</p>
-  <div class="card"><div class="history-tools">
-  <div><label for="fr">利用者</label><select id="fr"><option value="">すべての利用者</option>${repo.getResidents().map(r=>`<option value="${r.id}" ${r.id===fr?'selected':''}>${esc(r.name)}</option>`).join('')}</select></div>
-  <div><label for="fd">日付</label><input type="date" id="fd" value="${fd}"></div>
-  </div></div>
-  <div class="table-wrap"><table><tr><th>時刻</th><th>利用者</th><th>薬 / 時間帯</th><th>結果</th><th>担当</th></tr>
-  ${logs.map(l=>`<tr class="${l.status!=='服薬済み'?'bad':''}"><td>${hm(l.createdAt)}</td><td>${esc(repo.getResident(l.residentId)?.name)}</td><td>${esc(repo.getMedicine(l.medicineId)?.name)}<br>${esc(l.timeSlot)}</td><td>${esc(l.status)}${l.reason?'<br><small>'+esc(l.reason)+'</small>':''}</td><td>${esc(repo.getStaff(l.staffId)?.name)}</td></tr>`).join('')||'<tr><td colspan="5">該当する記録がありません。</td></tr>'}</table></div>
-  <button id="csv">CSV形式で書き出す</button><button id="rst">テストデータを初期化する</button><button id="back">確認画面に戻る</button>`;
+  a.innerHTML=`<h2>服薬履歴</h2><div class="card">
+  <select id="fr"><option value="">全員</option>${repo.getResidents().map(r=>`<option value="${r.id}" ${r.id===fr?'selected':''}>${esc(r.name)}</option>`).join('')}</select>
+  <input type="date" id="fd" value="${fd}" style="margin-top:8px"></div>
+  <div style="overflow-x:auto"><table><tr><th>時刻</th><th>利用者</th><th>薬/時間帯</th><th>結果</th><th>職員</th></tr>
+  ${logs.map(l=>`<tr class="${l.status!=='服薬済み'?'bad':''}"><td>${hm(l.createdAt)}</td><td>${esc(repo.getResident(l.residentId)?.name)}</td><td>${esc(repo.getMedicine(l.medicineId)?.name)}<br>${esc(l.timeSlot)}</td><td>${l.status!=='服薬済み'?'⚠ ':'✔ '}${esc(l.status)}${l.reason?'<br><small>'+esc(l.reason)+'</small>':''}</td><td>${esc(repo.getStaff(l.staffId)?.name)}</td></tr>`).join('')||'<tr><td colspan="5">記録がありません</td></tr>'}</table></div>
+  <button id="csv">⬇ CSV出力</button><button id="rst">🗑 テストデータを初期化</button><button class="pri" id="back">← 戻る</button>`;
   $('#fr').onchange=e=>{S.hr=e.target.value;renderHistory(a)};
   $('#fd').onchange=e=>{S.hd=e.target.value;renderHistory(a)};
   $('#back').onclick=()=>{S.view='flow';render()};
