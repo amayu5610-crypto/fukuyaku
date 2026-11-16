@@ -184,7 +184,21 @@ button.staff-dropdown-toggle[aria-expanded="true"] {
 button.staff-dropdown-toggle[aria-expanded="true"] .staff-chevron { transform: rotate(225deg); margin-top: 5px; }
 .staff-dropdown-list {
   display: grid; background: #fff; border: 1px solid var(--main); border-top: none;
-  border-radius: 0 0 9px 9px; overflow: hidden;
+  border-radius: 0 0 9px 9px;
+  max-height: 300px;  /* 4〜5名が見える高さで固定 */
+  overflow-y: auto;   /* 職員が多い場合は一覧の内側をスクロール */
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: #8ba69b #edf2ef;
+}
+.staff-dropdown-list::-webkit-scrollbar { width: 9px; }
+.staff-dropdown-list::-webkit-scrollbar-track { background: #edf2ef; }
+.staff-dropdown-list::-webkit-scrollbar-thumb {
+  background: #8ba69b;
+  border-radius: 6px;
+  border: 2px solid #edf2ef;
 }
 .staff-dropdown-list[hidden] { display: none; }
 button.staff-option {
@@ -361,8 +375,21 @@ function avatar(ch,c){return 'data:image/svg+xml;utf8,'+encodeURIComponent(`<svg
 const DB_KEY='medcheck_db_v1',LOG_KEY='medcheck_logs_v1';
 function seed(){
   return {
-    staff:[{id:'S001',name:'有馬　裕美'},{id:'S002',name:'大西　あす香'},{id:'S002',name:'佐藤　和也'},{id:'S002',name:'田中　優花'},{id:'S002',name:'吉川　智里'},{id:'S002',name:'細川　誠'},{id:'S002',name:'端田　照夫'}
-          ,{id:'S002',name:'吉田　昇眞'},{id:'S002',name:'瀬口　千尋'},{id:'S002',name:'彦坂　圭祐'},{id:'S002',name:'千葉　殊美'},{id:'S002',name:'田邉　光子'},{id:'S002',name:'稲田　美和'},{id:'S002',name:'青木　桜介'}],
+    staff:[
+      {id:'S001',name:'有馬　裕美'},
+      {id:'S002',name:'大西　あす香'},
+      {id:'S003',name:'佐藤　和也'},
+      {id:'S004',name:'田中　優花'},
+      {id:'S005',name:'吉川　智里'},
+      {id:'S006',name:'細川　誠'},
+      {id:'S007',name:'端田　照夫'},
+      {id:'S008',name:'吉田　昇眞'},
+      {id:'S009',name:'瀬口　千尋'},
+      {id:'S010',name:'彦坂　圭祐'},
+      {id:'S011',name:'千葉　殊美'},
+      {id:'S012',name:'田邉　光子'},
+      {id:'S013',name:'稲田　美和'},
+      {id:'S014',name:'青木　桜介'}],
     residents:[
       {id:'R001',name:'佐藤 花子',kana:'さとう はなこ',photo:avatar('佐','#c2185b'),room:'101'},
       {id:'R002',name:'鈴木 一郎',kana:'すずき いちろう',photo:avatar('鈴','#1565c0'),room:'102'},
