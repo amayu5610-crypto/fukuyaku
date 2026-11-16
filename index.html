@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>服薬確認アプリ</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+<script onerror="window.jsqrFail=1" src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
 <style>
 :root{--bg:#f4f6f8;--fg:#111;--card:#fff;--line:#333;--pri:#0b4f9c;--ok:#0a6b2d;--ng:#b00020;--warn:#fff3cd}
 *{box-sizing:border-box}
@@ -156,7 +156,7 @@ function r3(a){
   const r=S.resident;
   a.innerHTML=`<h2>③ 薬袋のQRを読み取ってください</h2>
   <div class="card">対象：<b>${esc(r.name)}</b> さん ／ 時間帯：<b>${S.slot}</b></div>
-  <div id="cam" style="display:none"><video id="video" playsinline muted></video><button id="stop">■ 読み取りを止める</button></div>
+  <div id="cam" style="display:none"><p class="hint">QRを画面の中央に、20〜30cm離して写してください。明るい場所で、ピントが合うまで少し待ちます。</p><video id="video" playsinline muted></video><button id="stop">■ 読み取りを止める</button></div>
   <div id="msg"></div>
   <button class="pri" id="start">📷 読み取り開始</button>
   <div class="card"><b>カメラが使えない場合：手入力</b>
@@ -168,14 +168,15 @@ function r3(a){
   $('#stop').onclick=()=>{stopScan();$('#cam').style.display='none';$('#start').style.display=''};
   $('#manual').onclick=()=>onCode($('#code').value);
   $('#back').onclick=()=>go(2);
+  if(S.noAuto){S.noAuto=false}else{startScan()} // 自動起動（失敗時は「読み取り開始」ボタンで再試行）
 }
 function msg(t){$('#msg').innerHTML=t?`<div class="err">${t}</div>`:''}
 async function startScan(){
-  msg('');
+  msg(window.jsqrFail&&!('BarcodeDetector' in window)?'⚠ 読み取り部品を読み込めませんでした。通信を確認して再読み込みするか、手入力をお使いください。':'');
   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
     msg('⚠ このブラウザ／接続ではカメラを使えません（HTTPSで開いているか確認してください）。下の手入力をお使いください。');return}
   try{
-    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false});
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}},audio:false});
     const v=$('#video');v.srcObject=stream;await v.play();
     $('#cam').style.display='block';$('#start').style.display='none';loop();
   }catch(e){
@@ -185,14 +186,26 @@ async function startScan(){
     else msg('⚠ カメラを起動できません（'+esc(e.name)+'）。手入力をお使いください。');
   }
 }
+let bd=null;
+try{if('BarcodeDetector' in window)bd=new BarcodeDetector({formats:['qr_code']})}catch(e){}
+let busy=false;
 function loop(){
   const v=$('#video'),cv=$('#cv');if(!v||!stream)return;
-  if(v.readyState===v.HAVE_ENOUGH_DATA&&v.videoWidth){
-    const k=Math.min(1,640/v.videoWidth);cv.width=v.videoWidth*k;cv.height=v.videoHeight*k;
-    const c=cv.getContext('2d',{willReadFrequently:true});c.drawImage(v,0,0,cv.width,cv.height);
-    const img=c.getImageData(0,0,cv.width,cv.height);
-    const q=jsQR(img.data,img.width,img.height,{inversionAttempts:'dontInvert'});
-    if(q&&q.data){stopScan();onCode(q.data);return}
+  if(v.readyState===v.HAVE_ENOUGH_DATA&&v.videoWidth&&!busy){
+    busy=true;
+    (async()=>{
+      try{
+        let data=null;
+        if(bd){const r=await bd.detect(v);if(r.length)data=r[0].rawValue}
+        if(!data&&typeof jsQR==='function'){
+          const k=Math.min(1,1280/v.videoWidth);cv.width=Math.round(v.videoWidth*k);cv.height=Math.round(v.videoHeight*k);
+          const c=cv.getContext('2d',{willReadFrequently:true});c.drawImage(v,0,0,cv.width,cv.height);
+          const q=jsQR(c.getImageData(0,0,cv.width,cv.height).data,cv.width,cv.height,{inversionAttempts:'attemptBoth'});
+          if(q&&q.data)data=q.data}
+        if(data&&stream){stopScan();busy=false;onCode(data);return}
+      }catch(e){}
+      busy=false;
+    })();
   }
   raf=requestAnimationFrame(loop);
 }
@@ -201,7 +214,7 @@ function onCode(raw){
   if(!S.resident){return}
   if(!code){msg('⚠ 番号を入力してください。');return}
   const rx=/^P\d{3}$/.test(code)?repo.getPrescription(code):null;
-  if(!rx){stopScan();render();msg('⚠ このQRは登録されていません（'+esc(code.slice(0,20))+'）。薬袋のQRか確認してください。');return}
+  if(!rx){stopScan();S.noAuto=true;render();msg('⚠ このQRは登録されていません（'+esc(code.slice(0,20))+'）。薬袋のQRか確認してください。');return}
   S.rx=rx;S.check=verify(rx);go(4);
 }
 
