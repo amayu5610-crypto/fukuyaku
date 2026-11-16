@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>服薬確認アプリ（QR改善版）</title>
+<!-- QR解析ライブラリ。片方の配信元につながらない場合のために2か所から読み込む -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+<script>window.qrLibraryReady = typeof window.jsQR === 'function';</script>
+<script>if (!window.qrLibraryReady) {document.write('<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"><\/script>')}</script>
+<style>
+:root{--bg:#f4f6f8;--fg:#111;--card:#fff;--line:#333;--pri:#0b4f9c;--ok:#0a6b2d;--ng:#b00020;--warn:#fff3cd}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:18px/1.6 -apple-system,"Hiragino Sans","Noto Sans JP",sans-serif}
+header{background:var(--pri);color:#fff;padding:10px 14px;position:sticky;top:0;z-index:5}
+header b{font-size:20px}
+.steps{display:flex;gap:4px;margin-top:6px}
+.steps span{flex:1;text-align:center;font-size:13px;padding:2px 0;border-radius:4px;background:#ffffff33}
+.steps .on{background:#fff;color:var(--pri);font-weight:700}
+main{padding:14px;max-width:560px;margin:auto}
+h2{font-size:22px;margin:4px 0 12px}
+.card{background:var(--card);border:2px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
+button,.btn{display:block;width:100%;min-height:56px;font-size:19px;font-weight:700;border:2px solid var(--line);border-radius:12px;background:#fff;color:var(--fg);margin:8px 0;padding:10px;font-family:inherit}
+button.pri{background:var(--pri);color:#fff;border-color:var(--pri)}
+button.ok{background:var(--ok);color:#fff;border-color:var(--ok)}
+button.ng{background:var(--ng);color:#fff;border-color:var(--ng)}
+button.sel{outline:5px solid #ffb300}
+button:disabled{opacity:.4}
+.row{display:flex;gap:8px}.row>*{flex:1}
+input,select,textarea{width:100%;min-height:52px;font-size:18px;padding:8px;border:2px solid var(--line);border-radius:10px;font-family:inherit}
+.photo{width:140px;height:140px;border-radius:12px;border:2px solid var(--line);object-fit:cover}
+.big{font-size:30px;font-weight:700;line-height:1.3}
+.res{text-align:center;padding:20px 14px;border-radius:14px;color:#fff;margin-bottom:12px}
+.res.ok{background:var(--ok)}.res.ng{background:var(--ng)}
+.res .icon{font-size:64px;line-height:1}
+.chk{list-style:none;padding:0;margin:0}
+.chk li{padding:8px 10px;border-bottom:1px solid #ccc;font-weight:700}
+.chk .p{color:var(--ok)}.chk .f{color:var(--ng)}
+.warnbox{background:var(--warn);border:3px solid var(--ng);border-radius:12px;padding:12px;font-weight:700}
+label.ack{display:flex;gap:12px;align-items:center;font-weight:700;margin:12px 0}
+label.ack input{width:32px;height:32px;min-height:0}
+video{width:100%;border-radius:12px;background:#000;border:2px solid var(--line)}
+.err{background:#fde7ea;border:2px solid var(--ng);border-radius:10px;padding:10px;margin:8px 0;font-weight:700}
+.hint{font-size:16px;color:#333}
+.ov{position:fixed;inset:0;background:#000a;display:flex;align-items:center;justify-content:center;padding:16px;z-index:20}
+.ov .card{max-width:420px;width:100%}
+table{width:100%;border-collapse:collapse;font-size:16px}
+td,th{border:1px solid #888;padding:6px;text-align:left}
+tr.bad{background:#fde7ea;font-weight:700;color:var(--ng)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.rc{display:flex;align-items:center;gap:10px;text-align:left}
+.rc img{width:64px;height:64px;border-radius:8px;border:1px solid #333}
+.qrguide{background:#eef5ff;border:1px solid #9fbbdd;border-radius:10px;padding:10px;font-size:15px;margin:10px 0}
+#cam video{max-height:56vh;object-fit:contain}
+#qrphoto{padding:9px;font-size:16px;background:#fff}
+</style>
+</head>
+<body>
+<header><b>💊 服薬確認</b> <span id="who" style="float:right;font-size:15px"></span><div class="steps" id="steps"></div></header>
+<main id="app"></main>
+<script>
+/* ===== ユーティリティ ===== */
+const $=s=>document.querySelector(s);
+const SLOTS=['朝','昼','夕','就寝前'];
+const pad=n=>String(n).padStart(2,'0');
+const ymd=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+const hm=iso=>{const d=new Date(iso);return pad(d.getHours())+':'+pad(d.getMinutes())};
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const addDays=(n)=>{const d=new Date();d.setDate(d.getDate()+n);return ymd(d)};
+function currentSlot(){const h=new Date().getHours();return h>=5&&h<11?'朝':h>=11&&h<15?'昼':h>=15&&h<20?'夕':'就寝前'}
+function avatar(ch,c){return 'data:image/svg+xml;utf8,'+encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect width="200" height="200" fill="${c}"/><text x="100" y="135" font-size="110" text-anchor="middle" fill="#fff" font-family="sans-serif">${ch}</text></svg>`)}
+
+/* ===== repository層（サーバーDB移行時はここだけ差し替え） ===== */
+const DB_KEY='medcheck_db_v1',LOG_KEY='medcheck_logs_v1';
+function seed(){
+  return {
+    staff:[{id:'S001',name:'山田 太郎'},{id:'S002',name:'高橋 美咲'}],
+    residents:[
+      {id:'R001',name:'佐藤 花子',kana:'さとう はなこ',photo:avatar('佐','#c2185b'),room:'101'},
+      {id:'R002',name:'鈴木 一郎',kana:'すずき いちろう',photo:avatar('鈴','#1565c0'),room:'102'},
+      {id:'R003',name:'田中 みどり',kana:'たなか みどり',photo:avatar('田','#2e7d32'),room:'103'}],
+    medicines:[
+      {id:'M001',name:'アムロジピン錠5mg',shape:'白い丸い錠剤',note:'血圧の薬。グレープフルーツ不可'},
+      {id:'M002',name:'メトホルミン錠250mg',shape:'白い錠剤',note:'食直後に服用'},
+      {id:'M003',name:'ワーファリン錠1mg',shape:'白い小さな錠剤',note:'出血に注意。納豆禁止'},
+      {id:'M004',name:'マグミット錠330mg',shape:'白い大きな錠剤',note:'水を多めに'},
+      {id:'M005',name:'ガスター錠20mg',shape:'薄い黄色の錠剤',note:'胃の薬'}],
+    prescriptions:[
+      {id:'P001',residentId:'R001',medicineId:'M001',dose:'1錠',timeSlot:'朝',startDate:addDays(-30),endDate:addDays(365)},
+      {id:'P002',residentId:'R001',medicineId:'M002',dose:'1錠',timeSlot:'夕',startDate:addDays(-30),endDate:addDays(365)},
+      {id:'P003',residentId:'R002',medicineId:'M003',dose:'1錠',timeSlot:'朝',startDate:addDays(-30),endDate:addDays(365)},
+      {id:'P004',residentId:'R002',medicineId:'M004',dose:'2錠',timeSlot:'就寝前',startDate:addDays(-30),endDate:addDays(365)},
+      {id:'P005',residentId:'R003',medicineId:'M005',dose:'1錠',timeSlot:'昼',startDate:addDays(-30),endDate:addDays(365)},
+      {id:'P006',residentId:'R003',medicineId:'M001',dose:'1錠',timeSlot:'夕',startDate:addDays(-30),endDate:addDays(365)},
+      {id:'P007',residentId:'R003',medicineId:'M002',dose:'1錠',timeSlot:'朝',startDate:addDays(-60),endDate:addDays(-1)}]};
+}
+const repo={
+  _db(){let d=localStorage.getItem(DB_KEY);if(!d){localStorage.setItem(DB_KEY,JSON.stringify(seed()));d=localStorage.getItem(DB_KEY)}return JSON.parse(d)},
+  getStaffList(){return this._db().staff},
+  getStaff(id){return this._db().staff.find(x=>x.id===id)},
+  getResidents(){return this._db().residents},
+  getResident(id){return this._db().residents.find(x=>x.id===id)},
+  getMedicine(id){return this._db().medicines.find(x=>x.id===id)},
+  getPrescription(id){return this._db().prescriptions.find(x=>x.id===id)},
+  getLogs(){return JSON.parse(localStorage.getItem(LOG_KEY)||'[]')},
+  findLog(prescriptionId,date,timeSlot){return this.getLogs().find(l=>l.prescriptionId===prescriptionId&&l.date===date&&l.timeSlot===timeSlot)},
+  saveLog(log){ // 二重保存防止
+    if(this.findLog(log.prescriptionId,log.date,log.timeSlot))return {ok:false,error:'dup'};
+    const a=this.getLogs();log.id='L'+Date.now();log.createdAt=new Date().toISOString();a.push(log);
+    localStorage.setItem(LOG_KEY,JSON.stringify(a));return {ok:true,log}},
+  reset(){localStorage.removeItem(DB_KEY);localStorage.removeItem(LOG_KEY)}
+};
+
+/* ===== 状態 ===== */
+const S={step:1,staff:null,slot:currentSlot(),resident:null,rx:null,check:null,status:null,reason:'',saved:null,view:'flow'};
+const STEPS=['職員','利用者','薬QR','照合','記録'];
+function go(step){stopScan();S.step=step;S.view='flow';render()}
+function renderSteps(){
+  $('#steps').innerHTML=S.view==='flow'?STEPS.map((t,i)=>`<span class="${i+1===S.step?'on':''}">${i+1}/5 ${t}</span>`).join(''):'<span class="on">履歴</span>';
+  $('#who').textContent=S.staff?'👤 '+S.staff.name:'';
+}
+
+/* ===== 画面 ===== */
+function render(){
+  renderSteps();const a=$('#app');
+  if(S.view==='history')return renderHistory(a);
+  ({1:r1,2:r2,3:r3,4:r4,5:r5})[S.step](a);
+  window.scrollTo(0,0);
+}
+function r1(a){
+  a.innerHTML=`<h2>① 職員を選んでください</h2>
+  ${repo.getStaffList().map(s=>`<button class="pri" data-staff="${s.id}">👤 ${esc(s.name)}</button>`).join('')}
+  <div class="card"><b>現在の時間帯</b>
+  <div class="grid">${SLOTS.map(t=>`<button data-slot="${t}" class="${t===S.slot?'sel pri':''}">${t===S.slot?'✔ ':''}${t}</button>`).join('')}</div>
+  <p class="hint">自動判定：${currentSlot()}（手動で変更できます）</p></div>
+  <button id="hist">📋 服薬履歴を見る</button>`;
+  a.querySelectorAll('[data-slot]').forEach(b=>b.onclick=()=>{S.slot=b.dataset.slot;r1(a)});
+  a.querySelectorAll('[data-staff]').forEach(b=>b.onclick=()=>{S.staff=repo.getStaff(b.dataset.staff);go(2)});
+  $('#hist').onclick=()=>{S.view='history';render()};
+}
+function r2(a){
+  S.resident=null;S.rx=null;
+  a.innerHTML=`<h2>② ご本人の名前を選んでください</h2>
+  ${repo.getResidents().map(r=>`<button class="rc" data-res="${r.id}"><img src="${r.photo}" alt=""><span><span class="big" style="font-size:24px">${esc(r.name)}</span><br><span class="hint">${esc(r.kana)}／${esc(r.room)}号室</span></span></button>`).join('')}
+  <button id="back">← 職員選択へ戻る</button>`;
+  a.querySelectorAll('[data-res]').forEach(b=>b.onclick=()=>{S.resident=repo.getResident(b.dataset.res);confirmResident(a)});
+  $('#back').onclick=()=>go(1);
+}
+function confirmResident(a){ // 顔写真で本人確認
+  const r=S.resident;
+  a.innerHTML=`<h2>目の前の方で間違いないですか？</h2>
+  <div class="card" style="text-align:center"><img class="photo" src="${r.photo}" alt="顔写真">
+  <div class="big">${esc(r.name)} さん</div><div>${esc(r.kana)}</div><div class="big">🚪 ${esc(r.room)}号室</div></div>
+  <button class="ok" id="yes">✔ 本人です</button><button class="ng" id="no">✖ 違います（選び直す）</button>`;
+  $('#yes').onclick=()=>go(3);$('#no').onclick=()=>go(2);
+}
+
+/* --- 薬QR読取 --- */
+let stream=null,raf=0,busy=false,scanSession=0,starting=false,lastScan=0;
+let bd=null;
+try{if('BarcodeDetector' in window)bd=new BarcodeDetector({formats:['qr_code']})}catch(e){bd=null}
+
+function hasDecoder(){return !!bd || typeof window.jsQR === 'function'}
+function stopScan(){
+  ++scanSession;
+  cancelAnimationFrame(raf);raf=0;
+  if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
+  const v=$('#video');if(v)v.srcObject=null;
+}
+function r3(a){
+  const r=S.resident;
+  a.innerHTML=`<h2>③ 薬袋のQRを読み取ってください</h2>
+  <div class="card">対象：<b>${esc(r.name)}</b> さん ／ 時間帯：<b>${esc(S.slot)}</b></div>
+  <div class="qrguide"><b>読み取れるQR</b>：このテストアプリに登録されている処方番号 <b>P001〜P007</b> です。<br>QRにURLや薬品番号（例：M001）が入っている場合は照合できません。</div>
+  <div id="cam" style="display:none">
+    <p class="hint">QRを中央に置いて、少しずつ距離を変えてください。明るい場所でピントを合わせます。</p>
+    <video id="video" autoplay playsinline muted></video>
+    <button id="stop">■ 読み取りを止める</button>
+  </div>
+  <div id="msg" role="status" aria-live="polite"></div>
+  <button class="pri" id="start">📷 カメラでQRを読み取る</button>
+  <div class="card"><b>📱 写真からQRを読み取る</b>
+    <p class="hint">カメラが使えないときは、QRが写っている画像を選んでください。</p>
+    <input type="file" id="qrphoto" accept="image/*" aria-label="QRコードの写真を選ぶ">
+  </div>
+  <div class="card"><b>番号を手入力する</b>
+    <input id="code" placeholder="例：P001" autocapitalize="characters" autocomplete="off" inputmode="text">
+    <button id="manual">入力した番号で照合</button>
+  </div>
+  <button id="back">← 利用者を選び直す</button>
+  <canvas id="cv" hidden></canvas>`;
+  $('#start').onclick=startScan;
+  $('#stop').onclick=()=>{stopScan();$('#cam').style.display='none';$('#start').style.display=''};
+  $('#manual').onclick=()=>onCode($('#code').value);
+  $('#qrphoto').onchange=photoScan;
+  $('#back').onclick=()=>go(2);
+  if(!hasDecoder())msg('⚠ QR読み取り部品を読み込めませんでした。インターネット接続を確認して再読み込みしてください。番号の手入力はできます。');
+}
+function msg(t){const el=$('#msg');if(el)el.innerHTML=t?`<div class="err">${t}</div>`:''}
+
+async function startScan(){
+  if(starting||stream)return;
+  if(!hasDecoder()){
+    msg('⚠ QRを認識する部品がありません。インターネット接続を確認して再読み込みするか、手入力をお使いください。');return;
+  }
+  if(!navigator.mediaDevices?.getUserMedia){
+    msg('⚠ カメラが使えません。HTTPSで公開したページをSafari／Chromeで開いてください。HTMLファイルを直接開いた場合も、端末によっては動作しません。');return;
+  }
+  starting=true;
+  const session=++scanSession;
+  msg('カメラへのアクセスを確認しています…');
+  let opened=null;
+  try{
+    try{
+      opened=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false});
+    }catch(e){
+      // カメラの条件が厳しすぎる端末では条件を緩めて再試行
+      if(e.name!=='OverconstrainedError' && e.name!=='NotFoundError')throw e;
+      opened=await navigator.mediaDevices.getUserMedia({video:true,audio:false});
+    }
+    if(session!==scanSession || !$('#video')){opened.getTracks().forEach(t=>t.stop());return}
+    stream=opened;
+    $('#cam').style.display='block';$('#start').style.display='none';
+    const v=$('#video');v.srcObject=stream;
+    await v.play();
+    if(session!==scanSession)return;
+    msg('カメラを起動しました。QRコードを映してください。');
+    lastScan=0;loop(session);
+  }catch(e){
+    if(opened){opened.getTracks().forEach(t=>t.stop());if(stream===opened)stream=null}
+    if(session!==scanSession)return;
+    if($('#cam'))$('#cam').style.display='none';
+    if($('#start'))$('#start').style.display='';
+    if(e.name==='NotAllowedError'||e.name==='SecurityError')
+      msg('⚠ カメラが許可されていません。Safari／Chromeのサイト設定でカメラを許可してから、再度押してください。HTTPSでのアクセスも確認してください。');
+    else if(e.name==='NotReadableError')
+      msg('⚠ カメラが別のアプリで使用中の可能性があります。ほかのカメラアプリを閉じて再試行してください。');
+    else if(e.name==='NotFoundError')msg('⚠ カメラが見つかりません。写真または手入力をお使いください。');
+    else msg('⚠ カメラを起動できません（'+esc(e.name||'unknown')+'）。写真または手入力をお使いください。');
+  }finally{starting=false}
+}
+
+async function decodeQR(source,cv){
+  // BarcodeDetectorが失敗しても、jsQRに必ずフォールバックする
+  if(bd){
+    try{
+      const results=await bd.detect(source);
+      if(results?.length && results[0].rawValue)return results[0].rawValue;
+    }catch(e){bd=null;console.warn('BarcodeDetector を無効化し jsQR に切り替えます',e)}
+  }
+  if(typeof window.jsQR!=='function')return null;
+  const w=source.videoWidth || source.naturalWidth || source.width;
+  const h=source.videoHeight || source.naturalHeight || source.height;
+  if(!w||!h)return null;
+  const scale=Math.min(1,1600/Math.max(w,h));
+  cv.width=Math.max(1,Math.round(w*scale));cv.height=Math.max(1,Math.round(h*scale));
+  const c=cv.getContext('2d',{willReadFrequently:true});
+  if(!c)return null;
+  c.drawImage(source,0,0,cv.width,cv.height);
+  const pix=c.getImageData(0,0,cv.width,cv.height);
+  const qr=window.jsQR(pix.data,pix.width,pix.height,{inversionAttempts:'attemptBoth'});
+  return qr?.data||null;
+}
+
+function loop(session){
+  if(session!==scanSession || !stream || !$('#video'))return;
+  const v=$('#video'),cv=$('#cv');
+  const now=performance.now();
+  if(!busy && now-lastScan>=140 && v.readyState>=v.HAVE_CURRENT_DATA && v.videoWidth){
+    busy=true;lastScan=now;
+    (async()=>{
+      try{
+        const data=await decodeQR(v,cv);
+        if(data && session===scanSession && stream){stopScan();onCode(data)}
+      }catch(e){console.warn('QR画像解析に失敗',e)}
+      finally{busy=false}
+    })();
+  }
+  raf=requestAnimationFrame(()=>loop(session));
+}
+
+function loadImage(file){
+  return new Promise((resolve,reject)=>{
+    const url=URL.createObjectURL(file),im=new Image();
+    im.onload=()=>{URL.revokeObjectURL(url);resolve(im)};
+    im.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('画像形式を読み込めません'))};
+    im.src=url;
+  });
+}
+async function photoScan(e){
+  const file=e.target.files?.[0];if(!file)return;
+  if(!hasDecoder()){msg('⚠ QR読み取り部品がありません。通信を確認するか手入力してください。');return}
+  stopScan();
+  $('#cam').style.display='none';$('#start').style.display='';
+  msg('写真のQRを解析しています…');
+  try{
+    const im=await loadImage(file);
+    if(!$('#cv'))return;
+    const data=await decodeQR(im,$('#cv'));
+    if(data){onCode(data)}
+    else msg('⚠ この写真からQRが見つかりませんでした。QRが大きく鮮明に写った写真を選んでください。');
+  }catch(e){msg('⚠ 写真を処理できませんでした（'+esc(e.message)+'）。JPEG／PNGなどをお試しください。')}
+  finally{if($('#qrphoto'))$('#qrphoto').value=''}
+}
+function onCode(raw){
+  const code=String(raw||'').trim().toUpperCase();
+  if(!S.resident)return;
+  if(!code){msg('⚠ 番号を入力してください。');return}
+  const rx=/^P\d{3}$/.test(code)?repo.getPrescription(code):null;
+  if(!rx){
+    stopScan();
+    if($('#cam'))$('#cam').style.display='none';
+    if($('#start'))$('#start').style.display='';
+    const shown=esc(code.slice(0,100))+(code.length>100?'…':'');
+    msg('⚠ QRは検出しましたが、このアプリには登録されていません。読み取った内容：<b>'+shown+'</b><br>登録されている処方番号（P001〜P007）が入ったQRか確認してください。');
+    return;
+  }
+  S.rx=rx;S.check=verify(rx);go(4);
+}
+
+/* --- 照合 --- */
+function verify(rx){
+  const today=ymd(new Date()),med=repo.getMedicine(rx.medicineId),owner=repo.getResident(rx.residentId);
+  const dup=repo.findLog(rx.id,today,rx.timeSlot);
+  const items=[
+    {k:'person',okText:'本人の薬です',ng:rx.residentId!==S.resident.id,ngText:`この薬は${owner.name.split(' ')[0]}さんの薬です`},
+    {k:'dup',okText:'未服薬（今回が初回）',ng:!!dup,ngText:dup?`本日${rx.timeSlot}の分は${hm(dup.createdAt)}に${dup.status}で記録済みです`:''},
+    {k:'slot',okText:`時間帯が一致（${S.slot}）`,ng:rx.timeSlot!==S.slot,ngText:`${rx.timeSlot}の薬です。今は${S.slot}です`},
+    {k:'term',okText:'有効期間内',ng:today<rx.startDate||today>rx.endDate,ngText:`処方期間外です（${rx.startDate}〜${rx.endDate}）`}];
+  return {items,ok:items.every(i=>!i.ng),med,owner};
+}
+function r4(a){
+  const {items,ok,med}=S.check,rx=S.rx;
+  const list=`<div class="card"><ul class="chk">${items.map(i=>`<li class="${i.ng?'f':'p'}">${i.ng?'⚠ '+esc(i.ngText):'✔ '+esc(i.okText)}</li>`).join('')}</ul></div>`;
+  if(ok){
+    a.innerHTML=`<div class="res ok"><div class="icon">✔</div><div class="big">OK</div><div>本人・時間帯・期間すべて一致</div></div>
+    <div class="card"><div class="big">${esc(med.name)}</div><div class="big">用量：${esc(rx.dose)}</div><div class="big">時間帯：${esc(rx.timeSlot)}</div>
+    <p>${esc(med.shape)}／${esc(med.note)}</p></div>${list}
+    <button class="ok" id="next">服薬を確認する →</button><button id="back">← やり直す</button>`;
+    $('#next').onclick=()=>{S.status=null;S.reason='';go(5)};
+  }else{
+    if(navigator.vibrate)navigator.vibrate([400,150,400,150,400]);
+    a.innerHTML=`<div class="res ng"><div class="icon">⚠</div><div class="big">NG 渡さないでください</div></div>
+    <div class="warnbox">${items.filter(i=>i.ng).map(i=>'⚠ '+esc(i.ngText)).join('<br>')}</div>${list}
+    <label class="ack"><input type="checkbox" id="ack"> 警告の内容を読みました</label>
+    <button class="ng" id="back" disabled>← 戻る（薬QRを読み直す）</button>`;
+    $('#ack').onchange=e=>{$('#back').disabled=!e.target.checked};
+  }
+  $('#back').onclick=()=>go(3);
+}
+
+/* --- 記録 --- */
+const REASONS=['食事を摂れなかった','体調不良','眠っていた','嘔吐した','本人が飲みたくないと言った','その他'];
+function r5(a){
+  const med=S.check.med,rx=S.rx,st=S.status;
+  a.innerHTML=`<h2>⑤ 服薬の結果を記録</h2>
+  <div class="card"><b>${esc(S.resident.name)}</b> さん／${esc(med.name)}／${esc(rx.dose)}／${esc(rx.timeSlot)}</div>
+  <p>実際に服薬を確認してから選んでください。</p>
+  <button data-st="服薬済み" class="${st==='服薬済み'?'sel ok':''}">✔ 服薬済み</button>
+  <button data-st="未服薬" class="${st==='未服薬'?'sel ng':''}">✖ 未服薬</button>
+  <button data-st="拒否" class="${st==='拒否'?'sel ng':''}">⛔ 拒否</button>
+  ${st&&st!=='服薬済み'?`<div class="card"><b>理由（必須）</b>
+   <select id="rs"><option value="">-- 選択 --</option>${REASONS.map(r=>`<option ${S.rsel===r?'selected':''}>${r}</option>`).join('')}</select>
+   <textarea id="rf" rows="3" placeholder="自由入力（任意・補足）">${esc(S.rfree||'')}</textarea></div>`:''}
+  <button class="pri" id="save" ${st?'':'disabled'}>保存する</button><button id="back">← 照合に戻る</button>`;
+  a.querySelectorAll('[data-st]').forEach(b=>b.onclick=()=>{S.status=b.dataset.st;r5(a)});
+  if($('#rs'))$('#rs').onchange=e=>S.rsel=e.target.value;
+  if($('#rf'))$('#rf').oninput=e=>S.rfree=e.target.value;
+  $('#back').onclick=()=>go(3);
+  $('#save').onclick=()=>{
+    let reason='';
+    if(S.status!=='服薬済み'){
+      reason=[S.rsel,(S.rfree||'').trim()].filter(Boolean).join('：');
+      if(!reason){alert('未服薬・拒否は理由が必要です。');return}}
+    confirmDlg(reason);
+  };
+}
+function confirmDlg(reason){
+  const d=document.createElement('div');d.className='ov';
+  d.innerHTML=`<div class="card"><div class="big" style="font-size:22px">この内容で保存しますか？</div>
+  <p>${esc(S.resident.name)}さん／${esc(S.check.med.name)}／${esc(S.rx.timeSlot)}<br><b>結果：${esc(S.status)}</b>${reason?'<br>理由：'+esc(reason):''}</p>
+  <div class="row"><button id="c">戻る</button><button class="pri" id="o">保存する</button></div></div>`;
+  document.body.appendChild(d);
+  d.querySelector('#c').onclick=()=>d.remove();
+  d.querySelector('#o').onclick=()=>{
+    const res=repo.saveLog({residentId:S.resident.id,medicineId:S.rx.medicineId,prescriptionId:S.rx.id,date:ymd(new Date()),timeSlot:S.rx.timeSlot,staffId:S.staff.id,status:S.status,reason});
+    d.remove();
+    if(!res.ok){alert('この処方は本日この時間帯に記録済みのため、保存しませんでした。');S.check=verify(S.rx);go(4);return}
+    S.saved=res.log;S.rsel=S.rfree='';renderDone();
+  };
+}
+function renderDone(){
+  const l=S.saved,a=$('#app');renderSteps();
+  a.innerHTML=`<div class="res ok"><div class="icon">✔</div><div class="big">記録しました</div></div>
+  <div class="card"><b>${esc(S.resident.name)}</b> さん<br>${esc(S.check.med.name)}／${esc(S.rx.dose)}／${esc(l.timeSlot)}<br>
+  結果：<b>${esc(l.status)}</b>${l.reason?'<br>理由：'+esc(l.reason):''}<br>時刻：${hm(l.createdAt)}／担当：${esc(S.staff.name)}</div>
+  <button class="pri" id="n1">💊 次の薬へ（同じ方）</button><button id="n2">👤 次の利用者へ</button><button id="n3">📋 服薬履歴</button>`;
+  $('#n1').onclick=()=>go(3);$('#n2').onclick=()=>go(2);$('#n3').onclick=()=>{S.view='history';render()};
+}
+
+/* --- 履歴 --- */
+function renderHistory(a){
+  const fr=S.hr||'',fd=S.hd===undefined?ymd(new Date()):S.hd;
+  const logs=repo.getLogs().filter(l=>(!fr||l.residentId===fr)&&(!fd||l.date===fd)).sort((x,y)=>y.createdAt.localeCompare(x.createdAt));
+  a.innerHTML=`<h2>服薬履歴</h2><div class="card">
+  <select id="fr"><option value="">全員</option>${repo.getResidents().map(r=>`<option value="${r.id}" ${r.id===fr?'selected':''}>${esc(r.name)}</option>`).join('')}</select>
+  <input type="date" id="fd" value="${fd}" style="margin-top:8px"></div>
+  <div style="overflow-x:auto"><table><tr><th>時刻</th><th>利用者</th><th>薬/時間帯</th><th>結果</th><th>職員</th></tr>
+  ${logs.map(l=>`<tr class="${l.status!=='服薬済み'?'bad':''}"><td>${hm(l.createdAt)}</td><td>${esc(repo.getResident(l.residentId)?.name)}</td><td>${esc(repo.getMedicine(l.medicineId)?.name)}<br>${esc(l.timeSlot)}</td><td>${l.status!=='服薬済み'?'⚠ ':'✔ '}${esc(l.status)}${l.reason?'<br><small>'+esc(l.reason)+'</small>':''}</td><td>${esc(repo.getStaff(l.staffId)?.name)}</td></tr>`).join('')||'<tr><td colspan="5">記録がありません</td></tr>'}</table></div>
+  <button id="csv">⬇ CSV出力</button><button id="rst">🗑 テストデータを初期化</button><button class="pri" id="back">← 戻る</button>`;
+  $('#fr').onchange=e=>{S.hr=e.target.value;renderHistory(a)};
+  $('#fd').onchange=e=>{S.hd=e.target.value;renderHistory(a)};
+  $('#back').onclick=()=>{S.view='flow';render()};
+  $('#rst').onclick=()=>{if(confirm('記録とサンプルデータを初期化します。よろしいですか？')){repo.reset();renderHistory(a)}};
+  $('#csv').onclick=()=>{
+    const rows=[['日付','時刻','利用者','薬','時間帯','結果','理由','職員']].concat(logs.map(l=>[l.date,hm(l.createdAt),repo.getResident(l.residentId)?.name,repo.getMedicine(l.medicineId)?.name,l.timeSlot,l.status,l.reason,repo.getStaff(l.staffId)?.name]));
+    const t='\ufeff'+rows.map(r=>r.map(c=>'"'+String(c??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');
+    const u=URL.createObjectURL(new Blob([t],{type:'text/csv'}));const x=document.createElement('a');x.href=u;x.download='服薬履歴_'+fd+'.csv';x.click();
+  };
+}
+render();
+</script>
+</body>
+</html>
